@@ -6,13 +6,11 @@ import { useState, type FormEvent } from "react";
 export default function LeaveForm() {
   const router = useRouter();
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    setSuccess("");
     setIsSubmitting(true);
 
     try {
@@ -35,7 +33,6 @@ export default function LeaveForm() {
         return;
       }
 
-      setSuccess("บันทึกใบลาเรียบร้อยแล้ว");
       event.currentTarget.reset();
       router.refresh();
     } catch {
@@ -46,98 +43,53 @@ export default function LeaveForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="space-y-2">
-          <label
-            htmlFor="leave-type"
-            className="block text-sm font-semibold text-white/90"
-          >
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="leave-type" className="field-label">
             ประเภทการลา
           </label>
-          <select
-            id="leave-type"
-            name="leaveType"
-            required
-            defaultValue="SICK"
-            className="min-h-12 w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 text-base text-white outline-none focus:border-blue-200"
-          >
+          <select id="leave-type" name="leaveType" required defaultValue="SICK" className="input">
             <option value="SICK">ลาป่วย</option>
             <option value="PERSONAL">ลากิจ</option>
             <option value="HOLIDAY">วันหยุด</option>
           </select>
         </div>
-        <div className="space-y-2">
-          <label
-            htmlFor="leave-start"
-            className="block text-sm font-semibold text-white/90"
-          >
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="leave-start" className="field-label">
             ตั้งแต่วันที่
           </label>
-          <input
-            id="leave-start"
-            name="startDate"
-            type="date"
-            required
-            className="min-h-12 w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 text-base text-white outline-none focus:border-blue-200"
-          />
+          <input id="leave-start" name="startDate" type="date" required className="input" />
         </div>
-        <div className="space-y-2">
-          <label
-            htmlFor="leave-end"
-            className="block text-sm font-semibold text-white/90"
-          >
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="leave-end" className="field-label">
             ถึงวันที่
           </label>
-          <input
-            id="leave-end"
-            name="endDate"
-            type="date"
-            required
-            className="min-h-12 w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 text-base text-white outline-none focus:border-blue-200"
-          />
+          <input id="leave-end" name="endDate" type="date" required className="input" />
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label
-          htmlFor="leave-reason"
-          className="block text-sm font-semibold text-white/90"
-        >
-          เหตุผล (ไม่บังคับ)
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="leave-reason" className="field-label">
+          เหตุผล <span className="field-hint">(ไม่บังคับ)</span>
         </label>
-        <textarea
+        <input
           id="leave-reason"
           name="reason"
-          rows={2}
+          type="text"
           maxLength={1000}
-          placeholder="ระบุเหตุผล (ถ้ามี)"
-          className="w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 py-3 text-base text-white outline-none placeholder:text-white/40 focus:border-blue-200"
+          placeholder="พิมพ์เหตุผล"
+          className="input"
         />
       </div>
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-xl border border-red-200/30 bg-red-400/10 px-4 py-3 text-sm text-red-100"
-        >
+        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
         </p>
       )}
-      {success && (
-        <p
-          role="status"
-          className="rounded-xl border border-emerald-200/30 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100"
-        >
-          {success}
-        </p>
-      )}
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="flex min-h-12 w-full items-center justify-center rounded-xl bg-white px-5 text-base font-bold text-[#0b2f5c] transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-70"
-      >
+      <button type="submit" disabled={isSubmitting} className="btn btn-primary btn-submit w-full">
         {isSubmitting ? "กำลังบันทึก…" : "บันทึกใบลา"}
       </button>
     </form>

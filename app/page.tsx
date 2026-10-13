@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 
 import { currentUser } from "@/lib/auth";
 
@@ -59,7 +60,56 @@ const features: { title: string; desc: string; icon: ReactNode }[] = [
   },
 ];
 
-export default async function HomePage() {
+function LoginButtons() {
+  return (
+    <>
+      <Link
+        href="/login?role=student"
+        className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-white px-6 text-[17px] font-semibold text-[#0b2f5c] shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+        </svg>
+        เข้าสู่ระบบสำหรับผู้ฝึกอาชีพ
+      </Link>
+
+      <Link
+        href="/login?role=admin"
+        className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-[#1d63d8] px-6 text-[17px] font-semibold text-white shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-[#1a56bd] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="4" width="18" height="16" rx="3" />
+          <path d="M3 9h18" />
+          <path d="M8 14h4" />
+        </svg>
+        เข้าสู่ระบบสำหรับเจ้าหน้าที่ศูนย์การเรียน
+      </Link>
+    </>
+  );
+}
+
+async function HomeCta() {
   const session = await currentUser();
   const dashboardHref =
     session?.role === "ADMIN"
@@ -68,6 +118,30 @@ export default async function HomePage() {
         ? "/student"
         : null;
 
+  if (dashboardHref) {
+    return (
+      <Link
+        href={dashboardHref}
+        className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-white px-6 text-[17px] font-semibold text-[#0b2f5c] shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
+      >
+        ไปหน้าของฉัน
+      </Link>
+    );
+  }
+
+  return <LoginButtons />;
+}
+
+function CtaFallback() {
+  return (
+    <div aria-hidden="true" className="flex w-full flex-wrap gap-3">
+      <div className="min-h-14 flex-[1_1_300px] animate-pulse rounded-[14px] bg-white/20" />
+      <div className="min-h-14 flex-[1_1_300px] animate-pulse rounded-[14px] bg-white/20" />
+    </div>
+  );
+}
+
+export default function HomePage() {
   return (
     <main
       className="flex min-h-screen flex-col items-center gap-7 px-6 pb-10 pt-14 text-white"
@@ -109,61 +183,11 @@ export default async function HomePage() {
         </p>
       </header>
 
-      {/* Login buttons */}
+      {/* Login buttons / dashboard link (อ่าน session แบบ stream) */}
       <div className="flex w-full max-w-[720px] flex-wrap gap-3">
-        {dashboardHref ? (
-          <Link
-            href={dashboardHref}
-            className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-white px-6 text-[17px] font-semibold text-[#0b2f5c] shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
-          >
-            ไปหน้าของฉัน
-          </Link>
-        ) : (
-          <>
-            <Link
-              href="/login?role=student"
-              className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-white px-6 text-[17px] font-semibold text-[#0b2f5c] shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
-            >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-          </svg>
-          เข้าสู่ระบบสำหรับผู้ฝึกอาชีพ
-        </Link>
-
-        <Link
-          href="/login?role=admin"
-          className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-[#1d63d8] px-6 text-[17px] font-semibold text-white shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-[#1a56bd] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
-        >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="3" y="4" width="18" height="16" rx="3" />
-            <path d="M3 9h18" />
-            <path d="M8 14h4" />
-          </svg>
-          เข้าสู่ระบบสำหรับเจ้าหน้าที่ศูนย์การเรียน
-        </Link>
-          </>
-        )}
+        <Suspense fallback={<CtaFallback />}>
+          <HomeCta />
+        </Suspense>
       </div>
 
       {/* Account notice */}

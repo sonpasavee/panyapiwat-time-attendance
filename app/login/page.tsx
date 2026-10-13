@@ -5,6 +5,9 @@ type LoginPageProps = {
   searchParams: Promise<{ role?: string | string[] }>;
 };
 
+// เนื้อหาทั้งเพจขึ้นกับ query param role — ไม่ prerender (blocking route)
+export const instant = false;
+
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const requestedRole = Array.isArray(params.role)

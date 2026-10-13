@@ -1,7 +1,15 @@
-import { redirect } from "next/navigation";
-import type { ReactNode } from "react";
+import Link from "next/link";
 
-import { currentUser } from "@/lib/auth";
+import { requireStudentPage } from "@/lib/page-auth";
+import {
+  bangkokDateKey,
+  formatDate,
+  formatMinutes,
+  formatThaiHeader,
+  formatTime,
+  last7Weekdays,
+} from "@/lib/format";
+import { monthRange } from "@/lib/time";
 import { monthYear } from "@/validators/api";
 import { getUserProfile } from "@/services/user.service";
 import {
@@ -13,627 +21,362 @@ import { getMyMoneyReport } from "@/services/money-tracker.service";
 import { listMyLeaves } from "@/services/leave.service";
 
 import AttendanceForm from "../components/attendance-form";
-import LeaveForm from "../components/leave-form";
-import LogoutButton from "../components/logout-button";
 import WorkTimer from "../components/work-timer";
+import { AttendanceBadge, Badge, Card, CardHeader, LeaveBadge, StatCard } from "../components/ui";
 
-/* ---------- constants & helpers ---------- */
+export const instant = false;
 
-const TZ = "Asia/Bangkok";
-
-const LEAVE_LABEL: Record<string, string> = {
-  HOLIDAY: "วันหยุด",
-  SICK: "ลาป่วย",
-  PERSONAL: "ลากิจ",
-};
-
-const LEAVE_STYLE: Record<string, string> = {
-  HOLIDAY: "bg-sky-300/20 text-sky-100 ring-sky-200/30",
-  SICK: "bg-rose-300/20 text-rose-100 ring-rose-200/30",
-  PERSONAL: "bg-amber-300/20 text-amber-100 ring-amber-200/30",
-};
-
-const NAV = [
-  { href: "#today", label: "วันนี้" },
-  { href: "#month", label: "สรุปเดือน" },
-  { href: "#money", label: "เงิน" },
-  { href: "#leave", label: "ลา" },
-  { href: "#history", label: "ประวัติ" },
-];
-
-type DateInput = Date | string | null | undefined;
-
-function formatTime(value: DateInput) {
-  if (!value) return "–";
-  return new Date(value).toLocaleTimeString("th-TH", {
-    timeZone: TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function formatDate(value: Date | string) {
-  return new Date(value).toLocaleDateString("th-TH", {
-    timeZone: TZ,
-    dateStyle: "medium",
-  });
-}
-
-function formatLongDate(value: Date | string) {
-  return new Date(value).toLocaleDateString("th-TH", {
-    timeZone: TZ,
-    weekday: "long",
+function leaveRangeText(start: Date, end: Date) {
+  const s = formatDate(start).replace(" พ.ศ. ", " ").replace(", ", " ");
+  if (bangkokDateKey(start) === bangkokDateKey(end)) return s;
+  const e = formatDate(end);
+  // "1 – 2 ต.ค. 2569" แบบ mock: ตัดเดือนปีซ้ำฝั่งเริ่ม
+  const sDay = new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
     day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  }).format(start);
+  return `${sDay} – ${e}`;
 }
 
-/** YYYY-MM-DD ตามเวลาไทย ใช้เทียบ "วันก่อนหน้า" */
-function dateKey(value: Date | string) {
-  return new Date(value).toLocaleDateString("en-CA", { timeZone: TZ });
-}
-
-function formatMinutes(total: number) {
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return h === 0 ? `${m} นาที` : `${h} ชม. ${m} นาที`;
-}
-
-function baht(value: unknown) {
-  return `฿${Number(value).toLocaleString("th-TH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-const card = "rounded-2xl border border-white/15 bg-white/[0.07] p-5 sm:p-6";
-const focusRing =
-  "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#ffd666]";
-
-/* ---------- small presentational pieces ---------- */
-
-function Section({
-  id,
-  title,
-  hint,
-  children,
-}: {
-  id: string;
-  title: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-20">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 id={`${id}-title`} className="text-lg font-semibold">
-          {title}
-        </h2>
-        {hint && <p className="text-sm text-white/70">{hint}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Stat({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className={card}>
-      <p className="text-sm text-white/75">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">
-        {children}
-      </p>
-    </div>
-  );
-}
-
-function Unit({ children }: { children: ReactNode }) {
-  return (
-    <span className="ml-1 mr-2 text-sm font-medium text-white/75">
-      {children}
-    </span>
-  );
-}
-
-function Step({
-  state,
-  label,
-  value,
-}: {
-  state: "done" | "current" | "todo";
-  label: string;
-  value: ReactNode;
-}) {
-  const circle =
-    state === "done"
-      ? "bg-emerald-400 text-[#06331f]"
-      : state === "current"
-        ? "bg-white text-[#0b2f5c] ring-4 ring-sky-300/40"
-        : "border border-white/30 bg-white/10 text-white/70";
-  return (
-    <li className="flex flex-col items-center gap-1.5 text-center">
-      <span
-        className={`flex h-10 w-10 items-center justify-center rounded-full ${circle}`}
-      >
-        {state === "done" ? (
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M5 12.5l4.5 4.5L19 7.5" />
-          </svg>
-        ) : (
-          <span className="h-2.5 w-2.5 rounded-full bg-current" />
-        )}
+function TimelineDot({ state }: { state: "done" | "current" | "todo" }) {
+  if (state === "done") {
+    return (
+      <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#16a34a] text-white">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
       </span>
-      <span className="text-xs text-white/75">{label}</span>
-      <span className="text-sm font-semibold tabular-nums">{value}</span>
-    </li>
-  );
-}
-
-function Badge({
-  className,
-  children,
-}: {
-  className: string;
-  children: ReactNode;
-}) {
+    );
+  }
+  if (state === "current") {
+    return (
+      <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-[#1d63d8] bg-white shadow-[0_0_0_4px_#dbeafe]">
+        <span className="h-[9px] w-[9px] rounded-full bg-[#1d63d8]" />
+      </span>
+    );
+  }
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${className}`}
-    >
-      {children}
+    <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#e8edf5]">
+      <span className="h-[9px] w-[9px] rounded-full bg-[#8696ae]" />
     </span>
   );
 }
 
-/* ---------- page ---------- */
-
-export default async function StudentPage() {
-  const session = await currentUser();
-
-  if (!session) {
-    redirect("/login?role=student");
-  }
-  if (session.role !== "STUDENT") {
-    redirect("/admin");
-  }
-
-  const { month, year } = monthYear(new URLSearchParams());
-
-  const [profile, today, summary, money, leaves, history] = await Promise.all([
-    getUserProfile(session.id),
-    getTodayAttendance(session.id),
-    getMyMonthlySummary(session.id, month, year),
-    getMyMoneyReport(session.id, month, year),
-    listMyLeaves(session.id, 0, 10),
-    listMyAttendance(session.id, { userId: session.id }, 0, 10),
-  ]);
-
+export default async function StudentDashboardPage() {
+  const session = await requireStudentPage();
   const now = new Date();
-  const todayKey = dateKey(now);
-  const monthLabel = now.toLocaleDateString("th-TH", {
-    timeZone: TZ,
-    month: "long",
-    year: "numeric",
-  });
+  const { month, year } = monthYear(new URLSearchParams());
+  const todayKey = bangkokDateKey(now);
+  const week = last7Weekdays(now);
+
+  const [profile, today, summary, money, leaves, history, monthRows, allLeaves] =
+    await Promise.all([
+      getUserProfile(session.id),
+      getTodayAttendance(session.id),
+      getMyMonthlySummary(session.id, month, year),
+      getMyMoneyReport(session.id, month, year),
+      listMyLeaves(session.id, 0, 4),
+      listMyAttendance(session.id, { userId: session.id }, 0, 10),
+      listMyAttendance(
+        session.id,
+        { userId: session.id, workDate: monthRange(year, month) },
+        0,
+        200,
+      ),
+      listMyLeaves(session.id, 0, 100),
+    ]);
 
   const checkedIn = !!today;
   const checkedOut = !!today?.checkOutAt;
-  const working = checkedIn && !checkedOut;
 
-  const status = !checkedIn
-    ? {
-        label: "ยังไม่ได้เช็กอิน",
-        cls: "bg-amber-300/20 text-amber-100 ring-amber-200/30",
-      }
-    : working
-      ? {
-          label: "กำลังทำงาน",
-          cls: "bg-sky-300/20 text-sky-100 ring-sky-200/30",
-        }
-      : {
-          label: "บันทึกครบแล้ว",
-          cls: "bg-emerald-300/20 text-emerald-100 ring-emerald-200/30",
-        };
+  const rowByDate = new Map(
+    monthRows.items.map((r) => [bangkokDateKey(r.workDate), r]),
+  );
+  const isLeaveDay = (key: string) =>
+    allLeaves.items.some(
+      (l) => bangkokDateKey(l.startDate) <= key && key <= bangkokDateKey(l.endDate),
+    );
 
-  const moneyRows = [
-    { type: "CASH" as const, label: "เงินสด" },
-    { type: "TRUEMONEY" as const, label: "TrueMoney" },
-  ];
+  const chart = week.map((d) => {
+    const row = rowByDate.get(d.key);
+    const isToday = d.key === todayKey;
+    if (row?.workMinutes != null) {
+      const hours = row.workMinutes / 60;
+      return { ...d, kind: "done" as const, label: hours.toFixed(1), height: Math.min(150, Math.round(hours * 13)) };
+    }
+    if (row && !row.checkOutAt && !isToday) {
+      return { ...d, kind: "missed" as const, label: "–", height: 6 };
+    }
+    if (isLeaveDay(d.key) && !isToday) {
+      return { ...d, kind: "leave" as const, label: "ลา", height: 6 };
+    }
+    if (isToday && row && !row.checkOutAt) {
+      const hours = (now.getTime() - new Date(row.checkInAt).getTime()) / 3600000;
+      return { ...d, kind: "today" as const, label: hours.toFixed(1), height: Math.max(10, Math.min(150, Math.round(hours * 13))) };
+    }
+    return { ...d, kind: "empty" as const, label: "0", height: 6 };
+  });
 
   return (
-    <main
-      className="min-h-screen pb-16 text-white"
-      style={{
-        background:
-          "radial-gradient(900px 520px at 15% 0%, rgba(96,165,240,0.30), rgba(96,165,240,0) 60%), linear-gradient(180deg, #0e4a86 0%, #0a2e5a 100%)",
-      }}
-    >
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <header className="mx-auto flex max-w-[960px] items-center gap-3 px-5 pb-4 pt-6 sm:px-8">
-        <div
-          aria-hidden="true"
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#0b2f5c]"
-        >
-          <svg
-            width="26"
-            height="26"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold sm:text-2xl">
-            {profile.firstName} {profile.lastName}
-          </h1>
-          <p className="truncate text-sm text-white/75">
-            รหัส {profile.studentId ?? profile.username}
-            {profile.shopCode ? ` • ร้าน ${profile.shopCode}` : ""}
-            {profile.gradeLevel ? ` • ชั้นปี ${profile.gradeLevel}` : ""}
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="m-0 text-[28px] font-bold leading-snug">แดชบอร์ด</h1>
+          <p className="mt-0.5 text-[15px] muted">
+            สวัสดี {profile.firstName} {profile.lastName} • {formatThaiHeader()}
           </p>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-3">
+          <span className="text-sm muted">
+            ร้าน {profile.shopCode ?? "–"} • ชั้นปี {profile.gradeLevel ?? "–"}
+          </span>
+          {checkedOut ? (
+            <Badge tone="green">ครบ</Badge>
+          ) : checkedIn ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#dbeafe] px-4 py-2 text-sm font-semibold text-[#1e3a8a]">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#1d63d8]" />
+              กำลังทำงาน
+            </span>
+          ) : (
+            <Badge tone="gray">ยังไม่เช็กอิน</Badge>
+          )}
+        </div>
       </header>
 
-      {/* Sticky section nav */}
-      <nav
-        aria-label="ไปยังหัวข้อ"
-        className="sticky top-0 z-10 border-b border-white/10 bg-[#0a2e5a]/85 backdrop-blur"
-      >
-        <ul className="mx-auto flex max-w-[960px] gap-1.5 overflow-x-auto px-5 py-2 sm:px-8">
-          {NAV.map((item) => (
-            <li key={item.href} className="shrink-0">
-              <a
-                href={item.href}
-                className={`flex min-h-10 items-center rounded-full px-4 text-sm font-medium text-white/90 transition hover:bg-white/10 ${focusRing}`}
-              >
-                {item.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      <div className="mx-auto mt-6 flex max-w-[960px] flex-col gap-8 px-5 sm:px-8">
-        {/* Today: status + the one action that matters */}
-        <section
-          id="today"
-          aria-labelledby="today-title"
-          className="scroll-mt-20 rounded-3xl border border-white/20 bg-white/[0.12] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)] sm:p-7"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm text-white/75">วันนี้</p>
-              <h2 id="today-title" className="text-xl font-bold">
-                {formatLongDate(now)}
-              </h2>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        {/* LEFT */}
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card labelledBy="today-h" className="card-pad">
+            <div className="flex items-center justify-between">
+              <h2 id="today-h" className="m-0 text-[19px] font-semibold">วันนี้</h2>
+              <span className="text-sm muted">
+                {checkedIn ? `เช็กอินเมื่อ ${formatTime(today?.checkInAt)} น.` : "ยังไม่ได้เช็กอิน"}
+              </span>
             </div>
-            <Badge className={status.cls}>
-              {working && (
-                <span
-                  aria-hidden="true"
-                  className="h-2 w-2 animate-pulse rounded-full bg-sky-200"
-                />
-              )}
-              {status.label}
-            </Badge>
-          </div>
 
-          <ol className="mt-6 grid grid-cols-3 gap-2">
-            <Step
-              state={checkedIn ? "done" : "current"}
-              label="เช็กอิน"
-              value={checkedIn ? formatTime(today?.checkInAt) : "–"}
-            />
-            <Step
-              state={checkedOut ? "done" : working ? "current" : "todo"}
-              label="เวลาทำงาน"
-              value={
-                working && today ? (
-                  <WorkTimer since={new Date(today.checkInAt).toISOString()} />
-                ) : today?.workMinutes != null ? (
-                  formatMinutes(today.workMinutes)
+            <div className="mt-5 flex flex-col gap-4 sm:flex-row">
+              <div className="flex-1 rounded-2xl bg-[#f4f7fb] p-5">
+                <p className="m-0 text-[13px] muted">เวลาทำงานวันนี้</p>
+                {checkedIn && !checkedOut && today ? (
+                  <>
+                    <WorkTimer
+                      checkInAt={new Date(today.checkInAt).toISOString()}
+                      initialNow={now.getTime()}
+                    />
+                    <p className="mt-1.5 text-sm muted">กำลังนับเวลาต่อเนื่อง</p>
+                  </>
+                ) : checkedOut && today?.workMinutes != null ? (
+                  <>
+                    <p className="m-0 mt-1 text-5xl font-bold leading-[1.15] tabular-nums">
+                      {String(Math.floor(today.workMinutes / 3600)).padStart(2, "0")}:
+                      {String(Math.floor((today.workMinutes % 3600) / 60)).padStart(2, "0")}:
+                      {String(Math.floor(((today.workMinutes % 3600) % 60))).padStart(2, "0")}
+                    </p>
+                    <p className="mt-1.5 text-sm muted">ทำงานครบแล้ววันนี้</p>
+                  </>
                 ) : (
-                  "–"
-                )
-              }
-            />
-            <Step
-              state={checkedOut ? "done" : "todo"}
-              label="เช็กเอาท์"
-              value={checkedOut ? formatTime(today?.checkOutAt) : "–"}
-            />
-          </ol>
-
-          <div className="mt-6 border-t border-white/15 pt-6">
-            {!checkedIn ? (
-              <>
-                <h3 className="text-lg font-semibold">เช็กอินเข้างาน</h3>
-                <p className="mt-1 text-sm text-white/75">
-                  แนบรูปถ่าย ใส่จำนวนเงินที่นำเข้า และเลือกประเภทเงิน
-                  แล้วกดยืนยัน
-                </p>
-                <div className="mt-4">
-                  <AttendanceForm action="check-in" />
-                </div>
-              </>
-            ) : working ? (
-              <>
-                <h3 className="text-lg font-semibold">เช็กเอาท์ออกงาน</h3>
-                <p className="mt-1 text-sm text-white/75">
-                  แนบรูปถ่าย ใส่จำนวนเงินที่นำออก และเลือกประเภทเงิน
-                  แล้วกดยืนยัน
-                </p>
-                <div className="mt-4">
-                  <AttendanceForm action="check-out" />
-                </div>
-              </>
-            ) : (
-              <p className="rounded-xl border border-emerald-200/30 bg-emerald-300/10 px-4 py-3 text-sm leading-relaxed text-emerald-100">
-                วันนี้เช็กอินและเช็กเอาท์ครบแล้ว ขอบคุณที่ตั้งใจฝึกงาน
-                เจอกันใหม่พรุ่งนี้
-              </p>
-            )}
-          </div>
-        </section>
-
-        {/* Monthly summary */}
-        <Section id="month" title="สรุปเดือนนี้" hint={monthLabel}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Stat label="ชั่วโมงทำงานรวม">
-              {summary.hours}
-              <Unit>ชม.</Unit>
-              {summary.minutes}
-              <Unit>นาที</Unit>
-            </Stat>
-            <Stat label="วันมาทำงาน">
-              {summary.attendanceDays}
-              <Unit>วัน</Unit>
-            </Stat>
-            <Stat label="วันที่เช็กครบ (เข้า–ออก)">
-              {summary.completeDays}
-              <Unit>วัน</Unit>
-            </Stat>
-          </div>
-        </Section>
-
-        {/* Money */}
-        <Section id="money" title="เงินส่วนตัว" hint={`เดือน${monthLabel}`}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {moneyRows.map(({ type, label }) => (
-              <div key={type} className={card}>
-                <p className="text-sm font-medium text-white/80">{label}</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums sm:text-3xl">
-                  {baht(money.totals[type].net)}
-                </p>
-                <p className="text-xs text-white/70">คงเหลือสุทธิ</p>
-                <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-sm">
-                  <div>
-                    <dt className="text-white/70">เงินเข้า</dt>
-                    <dd className="mt-0.5 font-semibold tabular-nums">
-                      {baht(money.totals[type].in)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/70">เงินออก</dt>
-                    <dd className="mt-0.5 font-semibold tabular-nums">
-                      {baht(money.totals[type].out)}
-                    </dd>
-                  </div>
-                </dl>
+                  <>
+                    <p className="m-0 mt-1 text-5xl font-bold leading-[1.15] tabular-nums muted">00:00:00</p>
+                    <p className="mt-1.5 text-sm muted">เช็กอินเพื่อเริ่มนับเวลา</p>
+                  </>
+                )}
               </div>
-            ))}
-          </div>
-        </Section>
 
-        {/* Leave */}
-        <Section id="leave" title="การลา">
-          <div className={card}>
-            <details className="group rounded-xl border border-white/15 bg-white/[0.05]">
-              <summary
-                className={`flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 font-semibold marker:content-none [&::-webkit-details-marker]:hidden ${focusRing}`}
-              >
-                <span className="flex items-center gap-2">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  แจ้งลาใหม่
-                </span>
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                  className="transition-transform group-open:rotate-180"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </summary>
-              <div className="border-t border-white/10 p-4">
-                <LeaveForm />
-              </div>
-            </details>
+              <ol className="m-0 flex flex-1 list-none flex-col justify-center gap-3.5 p-0">
+                <li className="flex items-center gap-3">
+                  <TimelineDot state={checkedIn ? "done" : "todo"} />
+                  <span className="flex-1 text-[15px] font-medium">เช็กอิน</span>
+                  <span className="text-[15px] font-semibold">{checkedIn ? formatTime(today?.checkInAt) : "–"}</span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <TimelineDot state={checkedIn && !checkedOut ? "current" : checkedOut ? "done" : "todo"} />
+                  <span className="flex-1 text-[15px] font-medium">กำลังทำงาน</span>
+                  <span className="text-[15px] font-semibold text-[#1750b8]">
+                    {checkedIn && !checkedOut ? "ตอนนี้" : checkedOut ? formatMinutes(today?.workMinutes) : "–"}
+                  </span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <TimelineDot state={checkedOut ? "done" : "todo"} />
+                  <span className={`flex-1 text-[15px] font-medium ${checkedOut ? "" : "muted"}`}>เช็กเอาท์</span>
+                  <span className={`text-[15px] font-semibold ${checkedOut ? "" : "muted"}`}>
+                    {checkedOut ? formatTime(today?.checkOutAt) : "–"}
+                  </span>
+                </li>
+              </ol>
+            </div>
 
-            <h3 className="mb-2 mt-6 text-base font-semibold">ประวัติการลา</h3>
-            {leaves.items.length === 0 ? (
-              <p className="rounded-xl bg-black/20 px-4 py-6 text-center text-sm text-white/70">
-                ยังไม่มีประวัติการลา
-              </p>
+            <div className="mt-6 border-t border-[#e3e9f2] pt-6">
+              <h3 className="m-0 text-[17px] font-semibold">
+                {!checkedIn ? "เช็กอินเข้างาน" : !checkedOut ? "เช็กเอาท์ออกงาน" : "บันทึกวันนี้ครบแล้ว"}
+              </h3>
+              {!checkedIn ? (
+                <AttendanceForm action="check-in" />
+              ) : !checkedOut ? (
+                <AttendanceForm action="check-out" />
+              ) : (
+                <p className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                  วันนี้เช็กอินและเช็กเอาท์ครบแล้ว เจอกันใหม่พรุ่งนี้
+                </p>
+              )}
+            </div>
+          </Card>
+
+          <Card label="ประวัติการลงเวลา" className="overflow-hidden">
+            <CardHeader
+              id="hist-h"
+              title="ประวัติการลงเวลา"
+              aside={<span className="text-sm muted">10 รายการล่าสุด</span>}
+            />
+            {history.items.length === 0 ? (
+              <p className="muted px-6 pb-6 text-sm">ยังไม่มีประวัติการลงเวลา</p>
             ) : (
-              <ul className="space-y-2">
-                {leaves.items.map((leave) => {
-                  const sameDay =
-                    dateKey(leave.startDate) === dateKey(leave.endDate);
-                  return (
-                    <li
-                      key={leave.id}
-                      className="rounded-xl bg-black/20 px-4 py-3 text-sm"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Badge
-                          className={
-                            LEAVE_STYLE[leave.type] ??
-                            "bg-white/10 text-white ring-white/20"
-                          }
-                        >
-                          {LEAVE_LABEL[leave.type] ?? leave.type}
-                        </Badge>
-                        <span className="tabular-nums text-white/85">
-                          {sameDay
-                            ? formatDate(leave.startDate)
-                            : `${formatDate(leave.startDate)} – ${formatDate(leave.endDate)}`}
-                        </span>
-                      </div>
-                      {leave.reason && (
-                        <p className="mt-2 text-white/75">{leave.reason}</p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </Section>
-
-        {/* History */}
-        <Section id="history" title="ประวัติการลงเวลา" hint="10 รายการล่าสุด">
-          {history.items.length === 0 ? (
-            <p className={`${card} text-center text-sm text-white/70`}>
-              ยังไม่มีประวัติการลงเวลา
-            </p>
-          ) : (
-            <>
-              {/* Mobile: cards */}
-              <ul className="space-y-2.5 md:hidden">
-                {history.items.map((item) => {
-                  const missed =
-                    !item.checkOutAt && dateKey(item.workDate) < todayKey;
-                  return (
-                    <li
-                      key={item.id}
-                      className="rounded-2xl border border-white/15 bg-white/[0.07] p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold">
-                            {formatDate(item.workDate)}
-                          </p>
-                          <p className="mt-1 text-sm tabular-nums text-white/80">
-                            {formatTime(item.checkInAt)} –{" "}
-                            {formatTime(item.checkOutAt)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold tabular-nums">
-                            {item.workMinutes != null
-                              ? formatMinutes(item.workMinutes)
-                              : "–"}
-                          </p>
-                          {missed && (
-                            <Badge className="mt-1.5 bg-amber-300/20 text-amber-100 ring-amber-200/30">
-                              ไม่ได้เช็กเอาท์
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-
-              {/* Desktop: table */}
-              <div className={`${card} hidden overflow-x-auto p-2 md:block`}>
-                <table className="w-full text-left text-sm">
-                  <caption className="sr-only">
-                    ประวัติการลงเวลาเข้า–ออกงาน
-                  </caption>
+              <div className="overflow-x-auto">
+                <table className="tbl">
+                  <caption className="sr-only">ประวัติการลงเวลาเข้า–ออกงาน</caption>
                   <thead>
-                    <tr className="text-white/70">
-                      <th scope="col" className="px-4 py-3 font-medium">
-                        วันที่
-                      </th>
-                      <th scope="col" className="px-4 py-3 font-medium">
-                        เช็กอิน
-                      </th>
-                      <th scope="col" className="px-4 py-3 font-medium">
-                        เช็กเอาท์
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-4 py-3 text-right font-medium"
-                      >
-                        เวลาทำงาน
-                      </th>
+                    <tr>
+                      <th scope="col">วันที่</th>
+                      <th scope="col">เช็กอิน</th>
+                      <th scope="col">เช็กเอาท์</th>
+                      <th scope="col">เวลาทำงาน</th>
+                      <th scope="col">สถานะ</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {history.items.map((item) => {
-                      const missed =
-                        !item.checkOutAt && dateKey(item.workDate) < todayKey;
-                      return (
-                        <tr key={item.id} className="border-t border-white/10">
-                          <td className="px-4 py-3 font-medium">
-                            {formatDate(item.workDate)}
-                          </td>
-                          <td className="px-4 py-3 tabular-nums">
-                            {formatTime(item.checkInAt)}
-                          </td>
-                          <td className="px-4 py-3 tabular-nums">
-                            {missed ? (
-                              <Badge className="bg-amber-300/20 text-amber-100 ring-amber-200/30">
-                                ไม่ได้เช็กเอาท์
-                              </Badge>
-                            ) : (
-                              formatTime(item.checkOutAt)
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                            {item.workMinutes != null
-                              ? formatMinutes(item.workMinutes)
-                              : "–"}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {history.items.map((item) => (
+                      <tr key={item.id}>
+                        <td className="font-medium">{formatDate(item.workDate)}</td>
+                        <td>{formatTime(item.checkInAt)}</td>
+                        <td>{formatTime(item.checkOutAt)}</td>
+                        <td className="font-semibold">{formatMinutes(item.workMinutes)}</td>
+                        <td>
+                          {item.checkOutAt ? (
+                            <AttendanceBadge checkedOut />
+                          ) : bangkokDateKey(item.workDate) === todayKey ? (
+                            <AttendanceBadge checkedOut={false} />
+                          ) : (
+                            <AttendanceBadge checkedOut={false} missed />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
-            </>
-          )}
-        </Section>
+            )}
+            <div className="flex justify-end px-6 py-3.5">
+              <Link href="/student/attendance" className="text-sm font-semibold text-[#1750b8] hover:underline">
+                ดูประวัติทั้งหมด →
+              </Link>
+            </div>
+          </Card>
+        </div>
+
+        {/* RIGHT */}
+        <div className="flex min-w-0 flex-col gap-5">
+          <div aria-label="สรุปเดือนนี้" className="grid grid-cols-2 gap-4">
+            <StatCard
+              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>}
+              iconBg="#dbeafe"
+              iconColor="#1750b8"
+              label="ชั่วโมงรวมเดือนนี้"
+              value={<>{summary.hours}<span className="mx-1.5 text-[13px] font-medium muted">ชม.</span>{summary.minutes}<span className="ml-1 text-[13px] font-medium muted">น.</span></>}
+            />
+            <StatCard
+              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /><path d="M9 15l2 2 4-4" /></svg>}
+              iconBg="#dcfce7"
+              iconColor="#14532d"
+              label="วันมาทำงาน"
+              value={<>{summary.attendanceDays}<span className="ml-1 text-[13px] font-medium muted">วัน</span></>}
+              sub={`เช็กครบ ${summary.completeDays} วัน`}
+            />
+            <StatCard
+              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13v4" /><rect x="3" y="7" width="18" height="13" rx="2" /><circle cx="16.5" cy="13.5" r="1.2" /></svg>}
+              iconBg="#fef3c7"
+              iconColor="#78350f"
+              label="เงินสดคงเหลือ"
+              value={`฿${money.totals.CASH.net}`}
+              sub={`เข้า ฿${money.totals.CASH.in} • ออก ฿${money.totals.CASH.out}`}
+            />
+            <StatCard
+              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3" /><path d="M11 18h2" /></svg>}
+              iconBg="#e0e7ff"
+              iconColor="#312e81"
+              label="TrueMoney คงเหลือ"
+              value={`฿${money.totals.TRUEMONEY.net}`}
+              sub={`เข้า ฿${money.totals.TRUEMONEY.in} • ออก ฿${money.totals.TRUEMONEY.out}`}
+            />
+          </div>
+
+          <Card labelledBy="chart-h" className="card-pad">
+            <div className="flex items-baseline justify-between">
+              <h2 id="chart-h" className="m-0 text-[17px] font-semibold">ชั่วโมงทำงานรายวัน</h2>
+              <span className="text-[13px] muted">
+                {new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", month: "long", year: "numeric" }).format(new Date())}
+              </span>
+            </div>
+            <div className="mt-3.5 flex h-[190px] items-end gap-2.5 border-b border-[#e3e9f2] pb-0.5" role="img" aria-label="กราฟชั่วโมงทำงาน 7 วันทำการล่าสุด">
+              {chart.map((b) => (
+                <div key={b.key} className="flex flex-1 flex-col items-center justify-end gap-1">
+                  <span
+                    className={`text-xs font-semibold ${b.kind === "missed" ? "text-[#78350f]" : b.kind === "leave" || b.kind === "empty" ? "muted" : b.kind === "today" ? "text-[#1750b8]" : ""}`}
+                  >
+                    {b.label}
+                  </span>
+                  <div
+                    className="w-full max-w-[30px]"
+                    style={{
+                      height: b.height,
+                      borderRadius: b.height <= 6 ? 3 : "8px 8px 0 0",
+                      background:
+                        b.kind === "done" ? "#1d63d8"
+                        : b.kind === "today" ? "#93b4f0"
+                        : b.kind === "missed" ? "#f59e0b"
+                        : b.kind === "leave" ? "#c3cfe0" : "#e3e9f2",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-1.5 flex gap-2.5">
+              {week.map((d) => (
+                <span key={d.key} className={`flex-1 text-center text-xs ${d.key === todayKey ? "font-semibold text-[#1750b8]" : "muted"}`}>
+                  {d.label}
+                </span>
+              ))}
+            </div>
+            <p className="mt-3 text-xs muted">ลา = วันที่ลา • – = ไม่ได้เช็กเอาท์ • แท่งอ่อน = วันนี้ (ยังทำงานอยู่)</p>
+          </Card>
+
+          <Card labelledBy="leave-h" className="card-pad">
+            <div className="flex items-center justify-between">
+              <h2 id="leave-h" className="m-0 text-[17px] font-semibold">การลา</h2>
+              <Link href="/student/leaves" className="btn btn-soft min-h-[40px] px-4 text-sm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                แจ้งลา
+              </Link>
+            </div>
+            {leaves.items.length === 0 ? (
+              <p className="muted mt-3.5 text-sm">ยังไม่มีประวัติการลา</p>
+            ) : (
+              <ul className="m-0 mt-3.5 flex list-none flex-col gap-2 p-0">
+                {leaves.items.map((leave) => (
+                  <li key={leave.id} className="rounded-xl bg-[#f8fafd] px-3.5 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <LeaveBadge type={leave.type} />
+                      <span className="text-sm text-[#33425b]">
+                        {leaveRangeText(leave.startDate, leave.endDate)}
+                      </span>
+                    </div>
+                    {leave.reason && (
+                      <p className="mt-2 text-[13px] muted">{leave.reason}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

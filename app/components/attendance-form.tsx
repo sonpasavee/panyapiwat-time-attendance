@@ -7,10 +7,17 @@ type AttendanceFormProps = {
   action: "check-in" | "check-out";
 };
 
+const MONEY_TYPES = [
+  { value: "CASH", label: "เงินสด" },
+  { value: "TRUEMONEY", label: "TrueMoney" },
+] as const;
+
 export default function AttendanceForm({ action }: AttendanceFormProps) {
   const router = useRouter();
+  const [moneyType, setMoneyType] = useState<"CASH" | "TRUEMONEY">("TRUEMONEY");
+  const [photoName, setPhotoName] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isCheckIn = action === "check-in";
@@ -18,11 +25,11 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    setSuccess("");
     setIsSubmitting(true);
 
     try {
       const formData = new FormData(event.currentTarget);
+      formData.set("moneyType", moneyType);
       const response = await fetch(`/api/attendance/${action}`, {
         method: "POST",
         body: formData,
@@ -30,18 +37,10 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
       const result = await response.json();
 
       if (!response.ok) {
-        setError(
-          result.error?.message || "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง",
-        );
+        setError(result.error?.message || "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง");
         return;
       }
 
-      setSuccess(
-        isCheckIn
-          ? "เช็กอินสำเร็จ ยินดีต้อนรับเข้าทำงาน"
-          : "เช็กเอาท์สำเร็จ ขอบคุณสำหรับวันนี้",
-      );
-      event.currentTarget.reset();
       router.refresh();
     } catch {
       setError("ไม่สามารถเชื่อมต่อระบบได้ กรุณาลองอีกครั้ง");
@@ -51,109 +50,138 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <label
-          htmlFor={`${action}-image`}
-          className="block text-sm font-semibold text-white/90"
-        >
-          รูปถ่าย{isCheckIn ? "เช็กอิน" : "เช็กเอาท์"} (jpeg/png/webp ไม่เกิน
-          5MB)
-        </label>
-        <input
-          id={`${action}-image`}
-          name="image"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          required
-          className="w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 py-3 text-sm text-white file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-[#0b2f5c]"
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+    <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <span id={`${action}-photo-label`} className="field-label">
+            {isCheckIn ? "ถ่ายรูปเข้างาน" : "ถ่ายรูปออกงาน"}
+          </span>
           <label
-            htmlFor={`${action}-moneyAmount`}
-            className="block text-sm font-semibold text-white/90"
+            htmlFor={`${action}-image`}
+            aria-labelledby={`${action}-photo-label`}
+            className="mt-1.5 flex min-h-[200px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-[#b3c2d8] bg-[#f8fafd] px-4 py-6 text-center transition hover:border-[#1d63d8]"
           >
-            จำนวนเงิน (บาท)
+            {photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photoUrl}
+                alt="ตัวอย่างรูปที่แนบ"
+                className="max-h-40 rounded-lg object-contain"
+              />
+            ) : (
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1d63d8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.6" /></svg>
+            )}
+            <span className="text-[15px] font-semibold">
+              {photoName || (isCheckIn ? "ถ่ายรูปเข้างาน" : "ถ่ายรูปออกงาน")}
+            </span>
+            <span className="muted text-[13px]">ต้องแนบรูปก่อนยืนยัน</span>
           </label>
           <input
-            id={`${action}-moneyAmount`}
-            name="moneyAmount"
-            type="text"
-            inputMode="decimal"
+            id={`${action}-image`}
+            name="image"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
             required
-            maxLength={12}
-            placeholder="เช่น 150 หรือ 120.50"
-            className="min-h-12 w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 text-base text-white outline-none placeholder:text-white/40 focus:border-blue-200"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              setPhotoName(file?.name ?? "");
+              setPhotoUrl((prev) => {
+                if (prev) URL.revokeObjectURL(prev);
+                return file ? URL.createObjectURL(file) : "";
+              });
+            }}
           />
         </div>
 
-        <div className="space-y-2">
-          <label
-            htmlFor={`${action}-moneyType`}
-            className="block text-sm font-semibold text-white/90"
-          >
-            ประเภทเงิน
-          </label>
-          <select
-            id={`${action}-moneyType`}
-            name="moneyType"
-            required
-            defaultValue="CASH"
-            className="min-h-12 w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 text-base text-white outline-none focus:border-blue-200"
-          >
-            <option value="CASH">เงินสด</option>
-            <option value="TRUEMONEY">TrueMoney</option>
-          </select>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={`${action}-moneyAmount`} className="field-label">
+              {isCheckIn ? "เงินที่นำเข้า (บาท)" : "เงินที่นำออก (บาท)"}
+            </label>
+            <div className="flex h-[52px] items-center gap-2 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
+              <span aria-hidden="true" className="text-lg font-semibold muted">
+                ฿
+              </span>
+              <input
+                id={`${action}-moneyAmount`}
+                name="moneyAmount"
+                type="text"
+                inputMode="decimal"
+                required
+                maxLength={12}
+                placeholder="0.00"
+                className="w-full min-w-0 border-none bg-transparent text-lg font-semibold outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span id={`${action}-moneyType-label`} className="field-label">
+              ประเภทเงิน
+            </span>
+            <div
+              role="group"
+              aria-labelledby={`${action}-moneyType-label`}
+              className="grid grid-cols-2 gap-1 rounded-xl bg-[#e9eef6] p-1"
+            >
+              {MONEY_TYPES.map((t) => {
+                const pressed = moneyType === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    aria-pressed={pressed}
+                    onClick={() => setMoneyType(t.value)}
+                    className={`min-h-[44px] rounded-[9px] border-none text-[15px] ${
+                      pressed
+                        ? "bg-white font-semibold text-[#1750b8] shadow-[0_1px_3px_rgba(15,31,58,0.15)]"
+                        : "bg-transparent font-medium text-[#33425b]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label
-          htmlFor={`${action}-note`}
-          className="block text-sm font-semibold text-white/90"
-        >
-          หมายเหตุ (ไม่บังคับ)
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={`${action}-note`} className="field-label">
+          หมายเหตุ <span className="field-hint">(ไม่บังคับ)</span>
         </label>
-        <textarea
+        <input
           id={`${action}-note`}
           name="note"
-          rows={2}
+          type="text"
           maxLength={1000}
-          placeholder="เพิ่มเติม (ถ้ามี)"
-          className="w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 py-3 text-base text-white outline-none placeholder:text-white/40 focus:border-blue-200"
+          placeholder="พิมพ์ข้อความ"
+          className="input"
         />
       </div>
 
       {error && (
         <p
           role="alert"
-          className="rounded-xl border border-red-200/30 bg-red-400/10 px-4 py-3 text-sm text-red-100"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
         >
           {error}
-        </p>
-      )}
-      {success && (
-        <p
-          role="status"
-          className="rounded-xl border border-emerald-200/30 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100"
-        >
-          {success}
         </p>
       )}
 
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex min-h-12 w-full items-center justify-center rounded-xl bg-white px-5 text-base font-bold text-[#0b2f5c] transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-70"
+        className="btn btn-primary btn-submit w-full"
       >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
         {isSubmitting
           ? "กำลังบันทึก…"
           : isCheckIn
-            ? "เช็กอินเข้างาน"
-            : "เช็กเอาท์ออกงาน"}
+            ? "ยืนยันเช็กอิน"
+            : "ยืนยันเช็กเอาท์"}
       </button>
     </form>
   );

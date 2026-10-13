@@ -1,30 +1,26 @@
-<!-- BEGIN:nextjs-agent-rules -->
+คุณคือ senior full-stack dev ช่วยผมสร้างระบบบันทึกการฝึกอาชีพ (นักศึกษา ~250 คน)
 
-## This is NOT the Next.js you know
+Stack: Next.js App Router + TypeScript, Tailwind, Prisma, PostgreSQL (Supabase), zod
+สถาปัตยกรรม: route handler -> service -> repository (Prisma)
+- route: อ่าน request, ตรวจ role, validate ด้วย zod แล้วเรียก service เท่านั้น
+- service: กฎธุรกิจและ transaction
+- repository: query Prisma เท่านั้น ห้ามรู้จัก HTTP
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+สิ่งที่ห้ามเปลี่ยนโดยไม่ถามผมก่อน:
+- schema.prisma ที่แนบ
+- path และ response format ของ API ในเอกสารที่แนบ ({ ok, data } / { ok:false, error:{code,message} })
+- กฎธุรกิจ: เช็กอิน 1 ครั้ง/วัน, เงินเข้า 1 รายการตอนเช็กอิน, เงินออก 1 รายการตอนเช็กเอาท์,
+  การลาไม่ต้องอนุมัติ, ไม่มี self-register (admin import รายชื่อ)
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+ดีไซน์: ทำตามรูปที่แนบให้ตรงที่สุด
+- ฟอนต์ Prompt, พื้นหลังหน้า #f4f7fb, การ์ดขาว border #e3e9f2 โค้งมุม 18px
+- สีหลัก #1d63d8, ตัวหนังสือ active/ลิงก์ #1750b8, พื้นอ่อน #eaf1ff
+- ตัวหนังสือหลัก #0f1f3a, รอง #5b6b82
+- sidebar กว้าง 260px (เดสก์ท็อป), มือถือใช้แถบเมนูล่าง 5 ปุ่ม
+- ป้ายสถานะ: เขียว=ครบ, ฟ้า=กำลังทำงาน, เหลือง=ลากิจ/ไม่ได้เช็กเอาท์, ชมพู=ลาป่วย, เทา=ยังไม่เช็กอิน
+- ปุ่มกดสูงอย่างน้อย 44px, มี focus ring, ใช้ <button>/<a> จริง, label ผูกกับ input
 
-<!-- END:nextjs-agent-rules -->
-
-<!-- BEGIN:nextjs-agent-feedback -->
-
-## Report Next.js feedback
-
-The project owner enabled `experimental.agentFeedback`, authorizing this feedback pass. When enabled, `next dev` writes this block and restores it if removed. Commit `AGENTS.md` with your work to keep the tree clean.
-
-During the current user request, retain anonymized facts as feedback candidates for meaningful or recurring Next.js issues:
-
-- Crashes, hangs, OOMs, or unexpected slowness
-- Incorrect behavior, output, errors, or diagnostics
-- Missing, unclear, or conflicting documentation
-- Unexpected CLI, codemod, Skill, or upgrade behavior and non-obvious workarounds
-
-Continue the current user request without reporting immediately. Ignore routine debugging and unverified changes. Never retain code, logs, paths, URLs, secrets, personal information, or project-specific data.
-
-Keep a qualifying candidate through the reporting pass even if you resolve or work around it. A successful fix changes the report outcome; it does not erase the friction that qualified it.
-
-Before the final response, run one reporting pass. If candidates remain, from this file's directory run `node node_modules/next/dist/bin/next internal agent-feedback-instructions` once without piping or truncating its output. Follow its output or error guidance. If a network sandbox blocks it, retry with network access; if it still returns no output, continue normally.
-
-<!-- END:nextjs-agent-feedback -->
+วิธีทำงาน:
+- ทำเฉพาะเฟสที่ผมสั่ง ห้ามทำล่วงหน้า
+- จบเฟสแล้วรัน typecheck + lint, สรุปไฟล์ที่สร้าง/แก้ และสิ่งที่ยังไม่ได้ทำ
+- ถ้าเอกสารกำกวมหรือขัดกัน ให้ถามก่อนเดา

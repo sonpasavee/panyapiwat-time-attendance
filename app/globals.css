@@ -1,11 +1,4 @@
-/* Tailwind v4 (create-next-app ล่าสุด) */
 @import "tailwindcss";
-
-/* ถ้าโปรเจคใช้ Tailwind v3 ให้ลบบรรทัด @import ด้านบน แล้วใช้ 3 บรรทัดนี้แทน
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-*/
 
 html {
   -webkit-text-size-adjust: 100%;
@@ -15,13 +8,18 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: #0a2e5a; /* สีสำรองระหว่างโหลด / ตอน overscroll ให้เข้ากับ gradient */
-  color: #ffffff;
+  background: #f4f7fb;
+  color: #0f1f3a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ลดการเคลื่อนไหวสำหรับผู้ที่ตั้งค่าไว้ในระบบ */
+/* focus ring ทุก interactive element (ตาม AGENTS.md) */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #7aa7f0;
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -29,4 +27,230 @@ body {
   * {
     transition: none !important;
   }
+}
+
+/* ---------- dashboard theme (ตามไฟล์ mock) ---------- */
+
+.card {
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #e3e9f2;
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(15, 31, 58, 0.04);
+}
+
+.card-pad {
+  padding: 24px;
+}
+
+.muted {
+  color: #5b6b82;
+}
+
+.btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.btn-primary {
+  background: #1d63d8;
+  color: #ffffff;
+}
+.btn-primary:hover {
+  background: #1750b8;
+}
+
+.btn-soft {
+  background: #eaf1ff;
+  color: #1750b8;
+}
+.btn-soft:hover {
+  background: #dbe8ff;
+}
+
+.btn-outline {
+  background: #ffffff;
+  border-color: #d5deeb;
+  color: #33425b;
+  font-weight: 500;
+}
+.btn-outline:hover {
+  background: #f4f7fb;
+}
+
+.btn-submit {
+  min-height: 54px;
+  font-size: 16px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #c3cfe0;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 15px;
+  color: #0f1f3a;
+}
+.input::placeholder {
+  color: #8696ae;
+}
+
+.field-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f1f3a;
+}
+.field-hint {
+  font-weight: 400;
+  color: #5b6b82;
+}
+
+/* ป้ายสถานะ (ตาม AGENTS.md) */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-green {
+  background: #dcfce7;
+  color: #14532d;
+}
+.badge-blue {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+.badge-yellow {
+  background: #fef3c7;
+  color: #78350f;
+}
+.badge-pink {
+  background: #ffe4e6;
+  color: #881337;
+}
+.badge-gray {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+/* ตาราง */
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+.tbl thead tr {
+  background: #f8fafd;
+  color: #5b6b82;
+  font-size: 13px;
+}
+.tbl th {
+  padding: 11px 12px;
+  font-weight: 500;
+}
+.tbl th:first-child,
+.tbl td:first-child {
+  padding-left: 24px;
+}
+.tbl th:last-child,
+.tbl td:last-child {
+  padding-right: 24px;
+}
+.tbl tbody tr {
+  border-top: 1px solid #edf1f7;
+}
+.tbl td {
+  padding: 13px 12px;
+  vertical-align: middle;
+}
+
+/* ลิงก์เมนู sidebar */
+.side-link {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: #33425b;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.side-link:hover {
+  background: #f4f7fb;
+}
+.side-link[aria-current="page"] {
+  background: #eaf1ff;
+  color: #1750b8;
+  font-weight: 600;
+}
+
+/* แถบเมนูล่างมือถือ */
+.bottom-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  background: #ffffff;
+  border-top: 1px solid #e3e9f2;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+}
+.bottom-nav-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bottom-nav-link {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+  min-height: 52px;
+  justify-content: center;
+  border-radius: 12px;
+  color: #5b6b82;
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 4px 8px;
+}
+.bottom-nav-link[aria-current="page"] {
+  background: #eaf1ff;
+  color: #1750b8;
+  font-weight: 600;
 }
