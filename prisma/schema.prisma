@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+enum MoneyType {
+  TRUEMONEY
+  CASH
+}
+
+enum MoneyDirection {
+  IN  // เงินเข้า บันทึกตอนเช็กเข้า
+  OUT // เงินออก บันทึกตอนเช็กออก
+}
+
+enum LeaveType {
+  HOLIDAY // วันหยุด
+  SICK    // ลาป่วย
+  PERSONAL // ลากิจ
+}
+
+// รหัสร้าน / สาขาที่ฝึก
+model Branch {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique // รหัสร้าน
+  name      String?
+  createdAt DateTime @default(now())
+
+  users User[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  role         Role     @default(STUDENT)
+  username     String   @unique // ใช้ login (เช่น เลขประจำตัวนักศึกษา)
+  passwordHash String
+  firstName    String
+  lastName     String
+  studentId    String?  @unique // เลขประจำตัวนักศึกษา (admin ไม่ต้องมี)
+  employeeCode String?  @unique // รหัสพนักงาน
+  shopCode     String?
+  gradeLevel   Int?
+  branchId     Int?     // รหัสร้านที่ฝึก
+  yearLevel    Int?     // ระดับชั้น
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  branch      Branch?      @relation(fields: [branchId], references: [id])
+  attendances Attendance[]
+  leaves      Leave[]
+  sessions    Session[]
+
+  @@index([branchId])
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  key             String   @id
+  count           Int      @default(0)
+  windowStartedAt DateTime @db.Timestamptz
+  updatedAt       DateTime @updatedAt
+}
+
+// เข้า 1 ครั้ง + ออก 1 ครั้งต่อวัน
+model Attendance {
+  id               String    @id @default(uuid())
+  userId           String
+  workDate         DateTime  @db.Date // วันที่ทำงาน (เวลาไทย)
+
+  checkInAt        DateTime  @db.Timestamptz // time stamp เข้างาน
+  checkInPhotoUrl  String    // path รูปใน Supabase Storage
+  checkInImagePublicId String?
+  checkInNote      String?   // ข้อมูลที่กรอกตอนเข้า
+
+  checkOutAt       DateTime? @db.Timestamptz // time stamp ออกงาน (null = ยังไม่ออก)
+  checkOutPhotoUrl String?
+  checkOutImagePublicId String?
+  checkOutNote     String?
+
+  workMinutes      Int?      // คำนวณตอนเช็กออก = checkOutAt - checkInAt (นาที)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  money MoneyEntry[]
+
+  @@unique([userId, workDate]) // กันเช็กเข้าซ้ำในวันเดียวกัน
+  @@index([workDate])
+}
+
+// เงินส่วนตัวของนักศึกษา: 1 รายการต่อเช็กเข้า (IN) และ 1 รายการต่อเช็กออก (OUT)
+model MoneyEntry {
+  id           String         @id @default(uuid())
+  attendanceId String
+  direction    MoneyDirection
+  amount       Decimal        @db.Decimal(10, 2)
+  moneyType    MoneyType      // TrueMoney / เงินสด เลือกทุกครั้ง
+  createdAt    DateTime       @default(now())
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@unique([attendanceId, direction]) // 1 รายการต่อ direction ต่อวัน
+}
+
+// ประวัติการลา/วันหยุด (ไม่ต้องอนุมัติ)
+model Leave {
+  id        String    @id @default(uuid())
+  userId    String
+  type      LeaveType
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  reason    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, startDate])
+}
+
+// ---------------------------------------------------------------
+// ตัวอย่าง query สรุปชั่วโมงทำงานรายเดือน (เช่น ต.ค. 2026)
+//
+// SELECT u.id, u."firstName", u."lastName",
+//        SUM("workMinutes") / 60.0 AS total_hours
+// FROM "Attendance" a
+// JOIN "User" u ON u.id = a."userId"
+// WHERE a."workDate" >= '2026-10-01' AND a."workDate" < '2026-11-01'
+//   AND a."workMinutes" IS NOT NULL
+// GROUP BY u.id
+// ORDER BY u."firstName";
+// ---------------------------------------------------------------
