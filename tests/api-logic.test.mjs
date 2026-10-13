@@ -4,7 +4,12 @@ import { bangkokWorkDate, monthRange } from "../lib/time.ts";
 import { summarizeShifts } from "../services/monthly-report.logic.ts";
 import { summarizeMoneyEntries } from "../services/money-tracker.logic.ts";
 import { checkOutRuleError } from "../services/attendance.logic.ts";
-import { leaveSchema, moneyAmountSchema } from "../validators/api.ts";
+import {
+  leaveSchema,
+  moneyAmountSchema,
+  studentImportSchema,
+} from "../validators/api.ts";
+import { decodeCsvBytes } from "../lib/csv-encoding.ts";
 
 test("Bangkok work date rolls over at Bangkok midnight", () => {
   assert.equal(
@@ -85,4 +90,67 @@ test("leave validation rejects reversed dates and accepts all supported kinds", 
       true,
     );
   }
+});
+
+test("student import requires employee codes and rejects duplicate identifiers across the file", () => {
+  const row = (line, studentId, employeeCode) => ({
+    line,
+    studentId,
+    firstName: "สมชาย",
+    lastName: "ใจดี",
+    employeeCode,
+  });
+
+  assert.equal(
+    studentImportSchema.safeParse({
+      rows: [row(2, "68001", "EMP01"), row(3, "68002", "EMP01")],
+    }).success,
+    false,
+  );
+  assert.equal(
+    studentImportSchema.safeParse({
+      rows: [row(2, "68001", "EMP01"), row(3, "EMP02", "68001")],
+    }).success,
+    false,
+  );
+  assert.equal(
+    studentImportSchema.safeParse({
+      rows: [{ ...row(2, "68001", ""), employeeCode: "" }],
+    }).success,
+    false,
+  );
+});
+
+test("student import accepts valid rows and enforces the batch cap", () => {
+  const row = (line) => ({
+    line,
+    studentId: `680${line}`,
+    firstName: "สมชาย",
+    lastName: "ใจดี",
+    employeeCode: `EMP${line}`,
+    gradeLevel: "3",
+  });
+
+  const parsed = studentImportSchema.parse({ rows: [row(2)] });
+  assert.equal(parsed.rows[0].gradeLevel, 3);
+  assert.equal(
+    studentImportSchema.safeParse({
+      rows: Array.from({ length: 501 }, (_, index) => row(index + 2)),
+    }).success,
+    false,
+  );
+});
+
+test("CSV decoding supports UTF-8 BOM and Thai Windows-874 files", () => {
+  const utf8Bom = new TextEncoder().encode("\uFEFFstudentId,firstName");
+  assert.deepEqual(decodeCsvBytes(utf8Bom.buffer), {
+    text: "studentId,firstName",
+    encoding: "UTF-8",
+  });
+
+  const thaiWindows874 = new Uint8Array([0xca, 0xc1, 0xaa, 0xd2, 0xc2]);
+  assert.deepEqual(decodeCsvBytes(thaiWindows874.buffer), {
+    text: "สมชาย",
+    encoding: "Windows-874",
+  });
 });

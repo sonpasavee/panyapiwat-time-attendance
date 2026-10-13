@@ -9,7 +9,7 @@ const COLUMNS: Array<[string, string]> = [
   ["studentId", "รหัสนักศึกษา (บังคับ, ไม่ซ้ำ)"],
   ["firstName", "ชื่อ (บังคับ)"],
   ["lastName", "นามสกุล (บังคับ)"],
-  ["employeeCode", "รหัสพนักงาน (ถ้ามี, ไม่ซ้ำ)"],
+  ["employeeCode", "รหัสพนักงาน (บังคับ, ไม่ซ้ำ, ใช้เป็นรหัสผ่านเริ่มต้น)"],
   ["shopCode", "รหัสร้าน (ถ้ามี)"],
   ["gradeLevel", "ชั้นปี 1–20 (ถ้ามี)"],
 ];
@@ -22,7 +22,7 @@ export default async function AdminImportPage() {
       <header>
         <h1 className="m-0 text-[28px] font-bold leading-snug">นำเข้ารายชื่อ</h1>
         <p className="mt-0.5 text-[15px] muted">
-          อัปโหลดไฟล์ CSV เพื่อตรวจสอบรายชื่อก่อนนำเข้าออกจากระบบ
+          อัปโหลดไฟล์ CSV เพื่อตรวจสอบและนำเข้ารายชื่อนักศึกษา
           (ไม่มีสมัครสมาชิกเอง — เฉพาะเจ้าหน้าที่นำเข้า)
         </p>
       </header>
@@ -41,6 +41,10 @@ export default async function AdminImportPage() {
 
       <Card labelledBy="up-h" className="card-pad">
         <h2 id="up-h" className="m-0 text-[19px] font-semibold">อัปโหลดและตรวจสอบ</h2>
+        <p className="muted mt-2 text-sm">
+          รหัสผ่านเริ่มต้นจะเป็นรหัสพนักงานและถูกเก็บเป็น hash; ระบบยังไม่มีหน้าสำหรับเปลี่ยนรหัสผ่าน
+          จึงควรแจ้งข้อมูลเริ่มต้นให้นักศึกษาเป็นการส่วนตัว
+        </p>
         <div className="mt-4">
           <ImportForm />
         </div>

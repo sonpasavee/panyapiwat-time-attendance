@@ -4,7 +4,7 @@
 
 แอปสร้างด้วย Next.js App Router และ TypeScript ใช้ PostgreSQL สำหรับข้อมูลหลัก, Prisma ORM สำหรับเข้าถึงฐานข้อมูล และ Cloudinary สำหรับรูปประกอบการลงเวลา
 
-> **สถานะก่อนเปิดใช้งานจริง:** หน้า CSV นำเข้ารายชื่อในปัจจุบันตรวจสอบและแสดงตัวอย่างข้อมูลเท่านั้น ยังไม่บันทึกรายชื่อเข้าฐานข้อมูล และยังไม่มี seed/bootstrap script สำหรับสร้างบัญชี ADMIN แรก นอกจากนี้ `POST /api/auth/register` ยังเป็น public endpoint ที่สร้างบัญชี STUDENT ได้ ซึ่งไม่สอดคล้องกับนโยบายไม่ให้สมัครเอง หากนโยบายนี้ยังมีผล ต้องปิดหรือจำกัด endpoint ดังกล่าว และกำหนดวิธี provision บัญชี ADMIN ที่ปลอดภัยก่อนเปิดระบบให้ผู้ใช้จริง
+> **สถานะก่อนเปิดใช้งานจริง:** ผู้มี role ADMIN สามารถนำเข้านักศึกษาเป็น batch ผ่านหน้า CSV หรือ `POST /api/admin/users/import` ได้ และ public self-registration ถูกปิดแล้ว อย่างไรก็ตาม ยังไม่มี seed/bootstrap script สำหรับสร้างบัญชี ADMIN แรก และระบบยังไม่มีฟังก์ชันเปลี่ยน/รีเซ็ตรหัสผ่าน จึงต้องกำหนดวิธี provision ADMIN และแผนเปลี่ยนรหัสผ่านเริ่มต้นอย่างปลอดภัยก่อนเปิดให้ผู้ใช้จริง
 
 ## สารบัญ
 
@@ -26,6 +26,8 @@
 - **ผู้ฝึกอาชีพ:** ดูแดชบอร์ด, ลงเวลาเข้า–ออก, ดูประวัติลงเวลา, ดูรายการเงินส่วนตัว และแจ้ง/ดูประวัติการลา
 - **เจ้าหน้าที่:** ดูภาพรวม, ค้นหาและกรองข้อมูลลงเวลา, ดูรายงาน, รายชื่อนักศึกษา และหน้าตรวจสอบไฟล์รายชื่อ
 - **การยืนยันตัวตน:** session cookie แบบ HttpOnly; ระบบมีบทบาท `ADMIN` และ `STUDENT`
+- **นำเข้านักศึกษา:** ADMIN เท่านั้น, CSV สูงสุด 500 รายชื่อ/ไฟล์ 1 MB, รองรับ UTF-8 และ Windows-874 สำหรับไฟล์ภาษาไทย, ตรวจรหัสซ้ำในไฟล์และฐานข้อมูล, บันทึกทั้ง batch หรือไม่บันทึกเลย; username คือ studentId และรหัสผ่านตั้งต้นคือ employeeCode ซึ่งเก็บเป็น Argon2id hash
+- **สมัครสมาชิก:** `POST /api/auth/register` ปิดใช้งานและคืน `410 REGISTRATION_DISABLED`; STUDENT ไม่สามารถใช้ employeeCode เป็น username ได้
 - **ลงเวลา:** จำกัดหนึ่งรายการลงเวลาต่อผู้ใช้ต่อวัน โดยใช้วันทำงานตามเขตเวลา Asia/Bangkok
 - **บันทึกเงิน:** ผูกกับรายการลงเวลา โดยจำกัดหนึ่งรายการเงินเข้า (`IN`) และหนึ่งรายการเงินออก (`OUT`) ต่อรายการลงเวลา; รองรับ `CASH` และ `TRUEMONEY`
 - **การลา:** มีประเภท `HOLIDAY`, `SICK` และ `PERSONAL`; ตามกฎระบบปัจจุบันไม่ต้องรอการอนุมัติ
@@ -226,14 +228,14 @@ npm run build
 
 8. ตรวจ log, database connectivity, การ login, การอัปโหลดรูป และ flow หลักหลัง deploy
 
-เปิดใช้ production ได้ต่อเมื่อมีบัญชี ADMIN แรกที่ provision อย่างปลอดภัย และตรวจสอบ/จัดการ public registration endpoint กับขั้นตอนนำเข้ารายชื่อให้เป็นไปตามนโยบาย enrollment ขององค์กรแล้ว
+เปิดใช้ production ได้ต่อเมื่อมีบัญชี ADMIN แรกที่ provision อย่างปลอดภัย และกำหนดวิธีแจก/เปลี่ยนรหัสผ่านเริ่มต้นเป็นการส่วนตัวแล้ว
 
 ## ความปลอดภัยและการดูแลระบบ
 
 - Session ใช้ cookie ชื่อ `attendance_session` แบบ HttpOnly, SameSite=Strict, อายุ 12 ชั่วโมง และเปิด `Secure` เมื่อ `NODE_ENV=production`
-- การเรียก mutation API ที่ต้องป้องกัน CSRF ตรวจ `Origin` ให้ตรงกับ host ของ request (การ register เป็นข้อยกเว้นใน implementation ปัจจุบัน)
+- การเรียก mutation API ตรวจ `Origin` ให้ตรงกับ host ของ request; register ถูกปิด
 - Login มี rate limit ตาม identifier หลังพยายามผิด 10 ครั้งในช่วง 15 นาที
-- รหัสผ่านใหม่ hash ด้วย Argon2id; ห้าม log หรือส่ง password/hash กลับไป client
+- รหัสผ่านที่นำเข้าตั้งต้นจาก employeeCode และ hash ด้วย Argon2id; ห้าม log หรือส่ง password/hash กลับไป client
 - รูปลงเวลารับเฉพาะ JPEG, PNG หรือ WebP ขนาดไม่เกิน 5 MB และตรวจลายเซ็นไฟล์ก่อนอัปโหลด
 - API response ส่วนตัวตั้ง `Cache-Control: no-store`
 - จำกัดสิทธิ์เข้าถึง database, Cloudinary และ hosting secrets เฉพาะผู้/ระบบที่จำเป็น และหมุน secret ทันทีเมื่อสงสัยว่ารั่ว
@@ -242,9 +244,8 @@ npm run build
 
 ## ข้อจำกัดที่ควรทราบ
 
-- ยังไม่มี seed/bootstrap script สำหรับบัญชี ADMIN แรก
-- หน้าตรวจสอบ CSV เป็น preview ฝั่ง client; ปุ่มแจ้งว่า API สำหรับบันทึกรายชื่อจะเปิดในเฟสถัดไป จึงยังไม่นำเข้าฐานข้อมูล
-- `POST /api/auth/register` ปัจจุบันเป็น public endpoint สำหรับสร้างบัญชี STUDENT แม้ UI ไม่มีหน้าสมัครบัญชี นี่เป็นข้อขัดแย้งกับนโยบาย “ไม่มี self-register” และต้องแก้/จำกัดก่อน production หากนโยบายดังกล่าวยังใช้
+- ยังไม่มี seed/bootstrap script สำหรับบัญชี ADMIN แรก; ต้อง provision ADMIN อย่างปลอดภัยก่อนใช้ import
+- รหัสผ่านเริ่มต้นของนักศึกษาคือ employeeCode และระบบยังไม่มี flow เปลี่ยนหรือรีเซ็ตรหัสผ่าน; ห้ามแจกข้อมูลเริ่มต้นผ่านช่องทางสาธารณะ
 - มี automated unit tests แต่ยังไม่ใช่ full end-to-end suite สำหรับทุก role และ external service
 - การเปลี่ยนรหัสผ่าน, การกู้คืนบัญชี, การจัดการ retention ของรูปภาพ และระบบ provision ADMIN ต้องมีขั้นตอนปฏิบัติการที่องค์กรกำหนด
 

@@ -1,23 +1,12 @@
 
-import { registerSchema } from "@/validators/api";
+import { ApiError, handleError } from "@/lib/api";
 
-import { handleError, json } from "@/lib/api";
-
-import { registerStudent } from "@/services/auth.service";
-
-export async function POST(request: Request) {
-  try {
-    const input = registerSchema.parse(
-      await request.json(),
-    );
-
-    return json(
-      {
-        user: await registerStudent(input),
-      },
-      201,
-    );
-  } catch (error) {
-    return handleError(error);
-  }
+export async function POST() {
+  return handleError(
+    new ApiError(
+      410,
+      "Student self-registration is disabled",
+      "REGISTRATION_DISABLED",
+    ),
+  );
 }

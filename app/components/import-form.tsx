@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { decodeCsvBytes, type CsvEncoding } from "@/lib/csv-encoding";
 
 type ParsedRow = {
   line: number;
@@ -13,58 +14,101 @@ type ParsedRow = {
   errors: string[];
 };
 
-function splitCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let cur = "";
+type CsvRecord = { line: number; cells: string[] };
+
+const MAX_FILE_BYTES = 1024 * 1024;
+const MAX_ROWS = 500;
+
+function parseCsv(text: string): CsvRecord[] {
+  const records: CsvRecord[] = [];
+  let cells: string[] = [];
+  let cell = "";
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  let afterQuote = false;
+  let line = 1;
+  let recordLine = 1;
+
+  const finishCell = () => {
+    cells.push(cell.trim());
+    cell = "";
+    afterQuote = false;
+  };
+  const finishRecord = () => {
+    finishCell();
+    records.push({ line: recordLine, cells });
+    cells = [];
+    recordLine = line + 1;
+  };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
     if (quoted) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') {
-          cur += '"';
-          i++;
+      if (character === '"') {
+        if (text[index + 1] === '"') {
+          cell += '"';
+          index += 1;
         } else {
           quoted = false;
+          afterQuote = true;
         }
+      } else if (character === "\r" || character === "\n") {
+        if (character === "\r" && text[index + 1] === "\n") index += 1;
+        cell += "\n";
+        line += 1;
       } else {
-        cur += ch;
+        cell += character;
       }
-    } else if (ch === '"') {
+      continue;
+    }
+
+    if (afterQuote && character !== "," && character !== "\r" && character !== "\n" && !/\s/.test(character)) {
+      throw new Error(`มีข้อมูลต่อจากเครื่องหมายปิด quote ที่แถว ${line}`);
+    }
+    if (character === '"') {
+      if (cell.trim().length > 0 || afterQuote) {
+        throw new Error(`ตำแหน่ง quote ไม่ถูกต้องที่แถว ${line}`);
+      }
+      cell = "";
       quoted = true;
-    } else if (ch === ",") {
-      cells.push(cur.trim());
-      cur = "";
-    } else {
-      cur += ch;
+    } else if (character === ",") {
+      finishCell();
+    } else if (character === "\r" || character === "\n") {
+      if (character === "\r" && text[index + 1] === "\n") index += 1;
+      finishRecord();
+      line += 1;
+      recordLine = line;
+    } else if (!afterQuote) {
+      cell += character;
     }
   }
-  cells.push(cur.trim());
-  return cells;
+
+  if (quoted) throw new Error(`มีเครื่องหมาย quote ที่ยังไม่ปิดในแถว ${recordLine}`);
+  if (cell.length > 0 || cells.length > 0 || text.endsWith(",")) finishRecord();
+  return records;
 }
 
 function validate(rows: ParsedRow[]): ParsedRow[] {
-  const seenStudent = new Map<string, number>();
-  const seenEmp = new Map<string, number>();
+  const seenIdentifiers = new Map<string, number>();
   return rows.map((row) => {
     const errors: string[] = [];
     if (!row.studentId) errors.push("ขาดรหัสนักศึกษา");
     else if (row.studentId.length > 40) errors.push("รหัสนักศึกษายาวเกิน 40 ตัวอักษร");
-    else {
-      const prev = seenStudent.get(row.studentId);
-      if (prev) errors.push(`รหัสนักศึกษาซ้ำกับแถวที่ ${prev}`);
-      else seenStudent.set(row.studentId, row.line);
-    }
     if (!row.firstName) errors.push("ขาดชื่อ");
     else if (row.firstName.length > 80) errors.push("ชื่อยาวเกิน 80 ตัวอักษร");
     if (!row.lastName) errors.push("ขาดนามสกุล");
     else if (row.lastName.length > 80) errors.push("นามสกุลยาวเกิน 80 ตัวอักษร");
-    if (row.employeeCode) {
-      if (row.employeeCode.length > 40) errors.push("รหัสพนักงานยาวเกิน 40 ตัวอักษร");
-      else {
-        const prev = seenEmp.get(row.employeeCode);
-        if (prev) errors.push(`รหัสพนักงานซ้ำกับแถวที่ ${prev}`);
-        else seenEmp.set(row.employeeCode, row.line);
+    if (!row.employeeCode) errors.push("ขาดรหัสพนักงาน (ใช้เป็นรหัสผ่านเริ่มต้น)");
+    else if (row.employeeCode.length > 40) errors.push("รหัสพนักงานยาวเกิน 40 ตัวอักษร");
+    for (const [label, value] of [
+      ["รหัสนักศึกษา", row.studentId],
+      ["รหัสพนักงาน", row.employeeCode],
+    ] as const) {
+      if (!value || value.length > 40) continue;
+      const previousLine = seenIdentifiers.get(value);
+      if (previousLine !== undefined) {
+        errors.push(`${label}ซ้ำกับรหัสในแถวที่ ${previousLine}`);
+      } else {
+        seenIdentifiers.set(value, row.line);
       }
     }
     if (row.shopCode && row.shopCode.length > 40)
@@ -81,56 +125,134 @@ function validate(rows: ParsedRow[]): ParsedRow[] {
 export default function ImportForm() {
   const [rows, setRows] = useState<ParsedRow[] | null>(null);
   const [fileName, setFileName] = useState("");
+  const [fileEncoding, setFileEncoding] = useState<CsvEncoding | null>(null);
   const [fileError, setFileError] = useState("");
-  const [notice, setNotice] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [importedCount, setImportedCount] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleFile(file: File | undefined) {
-    setNotice(false);
     if (!file) return;
+    setImportedCount(null);
+    setSubmitError("");
+    setFileEncoding(null);
     setFileName(file.name);
     if (!/\.csv$/i.test(file.name)) {
       setFileError("กรุณาเลือกไฟล์ .csv");
       setRows(null);
       return;
     }
-    const text = (await file.text()).replace(/^\uFEFF/, "");
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    if (lines.length < 2) {
-      setFileError("ไฟล์ว่างเปล่า (ต้องมีแถวหัวคอลัมน์ + ข้อมูลอย่างน้อย 1 แถว)");
+    if (file.size > MAX_FILE_BYTES) {
+      setFileError("ไฟล์ต้องมีขนาดไม่เกิน 1 MB");
       setRows(null);
       return;
     }
-    const header = splitCsvLine(lines[0]).map((h) => h.toLowerCase());
-    const idx = (name: string) => header.indexOf(name);
-    if (idx("studentid") < 0 || idx("firstname") < 0 || idx("lastname") < 0) {
-      setFileError(
-        "หัวคอลัมน์ต้องมี studentId, firstName, lastName (คอลัมน์เสริม: employeeCode, shopCode, gradeLevel)",
+    try {
+      const decoded = decodeCsvBytes(await file.arrayBuffer());
+      const text = decoded.text;
+      const records = parseCsv(text).filter(
+        ({ cells }) => cells.some((value) => value.trim().length > 0),
       );
+      if (records.length < 2) {
+        throw new Error("ไฟล์ว่างเปล่า (ต้องมีแถวหัวคอลัมน์และข้อมูลอย่างน้อย 1 แถว)");
+      }
+      const header = records[0].cells.map((value) => value.toLowerCase());
+      if (new Set(header).size !== header.length) {
+        throw new Error("พบชื่อหัวคอลัมน์ซ้ำ กรุณาตรวจสอบไฟล์");
+      }
+      const idx = (name: string) => header.indexOf(name);
+      const requiredHeaders = ["studentid", "firstname", "lastname", "employeecode"];
+      const missingHeaders = requiredHeaders.filter((name) => idx(name) < 0);
+      if (missingHeaders.length > 0) {
+        throw new Error(`หัวคอลัมน์ต้องมี ${requiredHeaders.join(", ")}`);
+      }
+
+      const dataRecords = records.slice(1);
+      if (dataRecords.length > MAX_ROWS) {
+        throw new Error(`นำเข้าได้ครั้งละไม่เกิน ${MAX_ROWS} รายชื่อ`);
+      }
+      const malformedRecord = dataRecords.find(
+        ({ cells }) => cells.length !== header.length,
+      );
+      if (malformedRecord) {
+        throw new Error(`จำนวนคอลัมน์ในแถว ${malformedRecord.line} ไม่ตรงกับหัวตาราง`);
+      }
+      const parsed: ParsedRow[] = dataRecords.map(({ line, cells }) => {
+        const get = (name: string) => {
+          const at = idx(name);
+          return at >= 0 ? (cells[at] ?? "") : "";
+        };
+        return {
+          line,
+          studentId: get("studentid"),
+          firstName: get("firstname"),
+          lastName: get("lastname"),
+          employeeCode: get("employeecode"),
+          shopCode: get("shopcode"),
+          gradeLevel: get("gradelevel"),
+          errors: [],
+        };
+      });
+      setFileError("");
+      setFileEncoding(decoded.encoding);
+      setRows(validate(parsed));
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : "อ่านไฟล์ CSV ไม่สำเร็จ");
       setRows(null);
-      return;
     }
-    const parsed: ParsedRow[] = lines.slice(1).map((line, i) => {
-      const c = splitCsvLine(line);
-      const get = (n: string) => {
-        const at = idx(n);
-        return at >= 0 ? (c[at] ?? "") : "";
-      };
-      return {
-        line: i + 2,
-        studentId: get("studentid"),
-        firstName: get("firstname"),
-        lastName: get("lastname"),
-        employeeCode: get("employeecode"),
-        shopCode: get("shopcode"),
-        gradeLevel: get("gradelevel"),
-        errors: [],
-      };
-    });
-    setFileError("");
-    setRows(validate(parsed));
   }
 
   const errorCount = rows?.filter((r) => r.errors.length > 0).length ?? 0;
+
+  async function submitImport() {
+    if (!rows || errorCount > 0 || submitting || importedCount !== null) return;
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const response = await fetch("/api/admin/users/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rows: rows.map((row) => ({
+            line: row.line,
+            studentId: row.studentId,
+            firstName: row.firstName,
+            lastName: row.lastName,
+            employeeCode: row.employeeCode,
+            shopCode: row.shopCode,
+            gradeLevel: row.gradeLevel,
+          })),
+        }),
+      });
+      const result: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof result === "object" &&
+          result !== null &&
+          "error" in result &&
+          typeof result.error === "object" &&
+          result.error !== null &&
+          "message" in result.error &&
+          typeof result.error.message === "string"
+            ? result.error.message
+            : "นำเข้ารายชื่อไม่สำเร็จ";
+        throw new Error(message);
+      }
+      if (
+        typeof result !== "object" ||
+        result === null ||
+        !("importedCount" in result) ||
+        typeof result.importedCount !== "number"
+      ) {
+        throw new Error("รูปแบบผลลัพธ์จากเซิร์ฟเวอร์ไม่ถูกต้อง");
+      }
+      setImportedCount(result.importedCount);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "นำเข้ารายชื่อไม่สำเร็จ");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -148,7 +270,7 @@ export default function ImportForm() {
             {fileName || "เลือกไฟล์ CSV"}
           </span>
           <span className="muted text-[13px]">
-            คอลัมน์: studentId, firstName, lastName, employeeCode, shopCode, gradeLevel
+            คอลัมน์บังคับ: studentId, firstName, lastName, employeeCode • ไม่เกิน 500 รายชื่อ / 1 MB
           </span>
         </label>
         <input
@@ -156,13 +278,23 @@ export default function ImportForm() {
           type="file"
           accept=".csv,text/csv"
           className="sr-only"
-          onChange={(e) => handleFile(e.target.files?.[0])}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.currentTarget.value = "";
+            void handleFile(file);
+          }}
         />
       </div>
 
       {fileError && (
         <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {fileError}
+        </p>
+      )}
+
+      {fileEncoding === "Windows-874" && (
+        <p role="status" className="rounded-xl border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-sm text-[#1e40af]">
+          ตรวจพบไฟล์ภาษาไทยแบบ Windows-874 และแปลงข้อความให้อัตโนมัติ
         </p>
       )}
 
@@ -182,6 +314,7 @@ export default function ImportForm() {
                 <tr>
                   <th>แถว</th>
                   <th>รหัสนักศึกษา</th>
+                  <th>รหัสพนักงาน</th>
                   <th>ชื่อ-นามสกุล</th>
                   <th>ร้าน/ชั้นปี</th>
                   <th>ผลตรวจ</th>
@@ -192,6 +325,7 @@ export default function ImportForm() {
                   <tr key={r.line}>
                     <td>{r.line}</td>
                     <td>{r.studentId || "–"}</td>
+                    <td>{r.employeeCode || "–"}</td>
                     <td>{`${r.firstName} ${r.lastName}`.trim() || "–"}</td>
                     <td>{[r.shopCode, r.gradeLevel && `ปี ${r.gradeLevel}`].filter(Boolean).join(" • ") || "–"}</td>
                     <td>
@@ -214,16 +348,25 @@ export default function ImportForm() {
 
       <button
         type="button"
-        disabled={!rows || errorCount > 0}
-        onClick={() => setNotice(true)}
+        disabled={!rows || errorCount > 0 || submitting || importedCount !== null}
+        onClick={submitImport}
         className="btn btn-primary btn-submit w-full"
       >
-        นำเข้ารายชื่อ{rows ? ` ${rows.length - errorCount} คน` : ""}
+        {submitting
+          ? "กำลังนำเข้า…"
+          : importedCount !== null
+            ? `นำเข้าสำเร็จ ${importedCount} คน`
+            : `นำเข้ารายชื่อ${rows ? ` ${rows.length - errorCount} คน` : ""}`}
       </button>
 
-      {notice && (
-        <p role="status" className="rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-sm text-[#78350f]">
-          ไฟล์ผ่านการตรวจสอบแล้ว การบันทึกลงฐานข้อมูลจะเปิดใช้งานในเฟสถัดไป (API นำเข้ารายชื่อ)
+      {importedCount !== null && (
+        <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+          นำเข้ารายชื่อสำเร็จ {importedCount} คน โดยตั้ง username เป็นรหัสนักศึกษา และตั้งรหัสผ่านเริ่มต้นจากรหัสพนักงาน (เก็บเป็น hash)
+        </p>
+      )}
+      {submitError && (
+        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {submitError}
         </p>
       )}
     </div>

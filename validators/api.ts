@@ -1,38 +1,56 @@
 
 import { z } from "zod";
 
-// ============================================
-// 1. Register Schema
-// ============================================
+// NOTE: Turbopack dev เคยเสิร์ฟโมดูลนี้เวอร์ชันเก่า (ไม่มี studentImportSchema)
+// คอมเมนต์บรรทัดนี้ไว้บังคับ re-transform — ลบได้เมื่อ dev server รีสตาร์ตแล้ว
+const studentImportRowSchema = z
+  .object({
+    line: z.number().int().positive(),
+    studentId: z.string().trim().min(1).max(40),
+    firstName: z.string().trim().min(1).max(80),
+    lastName: z.string().trim().min(1).max(80),
+    employeeCode: z.string().trim().min(1).max(40),
+    shopCode: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .or(z.literal("")),
+    gradeLevel: z.preprocess(
+      (value) => (value === "" || value === undefined ? undefined : value),
+      z.coerce.number().int().min(1).max(20).optional(),
+    ),
+  })
+  .strict();
 
-export const registerSchema = z.object({
-  firstName: z.string().trim().min(1).max(80),
-  lastName: z.string().trim().min(1).max(80),
-  studentId: z.string().trim().min(1).max(40),
+export const studentImportSchema = z
+  .object({
+    rows: z.array(studentImportRowSchema).min(1).max(500),
+  })
+  .strict()
+  .superRefine(({ rows }, context) => {
+    const seenIdentifiers = new Map<string, number>();
 
-  employeeCode: z
-    .string()
-    .trim()
-    .max(40)
-    .optional()
-    .or(z.literal("")),
+    rows.forEach((row, index) => {
+      for (const [field, value] of [
+        ["studentId", row.studentId],
+        ["employeeCode", row.employeeCode],
+      ] as const) {
+        const previousLine = seenIdentifiers.get(value);
+        if (previousLine !== undefined) {
+          context.addIssue({
+            code: "custom",
+            path: ["rows", index, field],
+            message: `รหัสซ้ำกับแถวที่ ${previousLine}`,
+          });
+        } else {
+          seenIdentifiers.set(value, row.line);
+        }
+      }
+    });
+  });
 
-  shopCode: z
-    .string()
-    .trim()
-    .max(40)
-    .optional()
-    .or(z.literal("")),
-
-  gradeLevel: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(20)
-    .optional(),
-
-  password: z.string().min(12).max(128),
-});
+export type StudentImportRow = z.infer<typeof studentImportRowSchema>;
 
 // ============================================
 // 2. Login Schema

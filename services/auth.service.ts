@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 
 import {
-  hashPassword,
   verifyPassword,
   setSession,
   assertLoginAllowed,
@@ -10,66 +9,6 @@ import {
   clearLoginFailures,
   clearSession,
 } from "@/lib/auth";
-
-// ========================================
-// Register Student
-// ========================================
-
-export async function registerStudent(input: {
-  firstName: string;
-  lastName: string;
-  studentId: string;
-  employeeCode?: string;
-  shopCode?: string;
-  gradeLevel?: number;
-  password: string;
-}) {
-  const duplicate = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { username: input.studentId },
-        { studentId: input.studentId },
-        ...(input.employeeCode ? [{ employeeCode: input.employeeCode }] : []),
-      ],
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (duplicate) {
-    throw new ApiError(409, "Account details already in use", "CONFLICT");
-  }
-
-  const passwordHash = await hashPassword(input.password);
-
-  return prisma.user.create({
-    data: {
-      username: input.studentId,
-      studentId: input.studentId,
-      employeeCode: input.employeeCode || null,
-      shopCode: input.shopCode || null,
-      gradeLevel: input.gradeLevel,
-      yearLevel: input.gradeLevel,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      passwordHash,
-      role: "STUDENT",
-    },
-    select: {
-      id: true,
-      username: true,
-      studentId: true,
-      employeeCode: true,
-      shopCode: true,
-      gradeLevel: true,
-      firstName: true,
-      lastName: true,
-      role: true,
-      createdAt: true,
-    },
-  });
-}
 
 // ========================================
 // Login User
@@ -81,7 +20,11 @@ export async function loginUser(username: string, password: string) {
 
   const user = await prisma.user.findFirst({
     where: {
-      OR: [{ username }, { studentId: username }, { employeeCode: username }],
+      OR: [
+        { username },
+        { studentId: username },
+        { employeeCode: username, role: "ADMIN" },
+      ],
       isActive: true,
     },
   });

@@ -17,7 +17,7 @@ Base URL (local): `http://localhost:3000` (ตอนตรวจใช้ `:3100
   - ADMIN เรียกเส้น STUDENT (เช่น `/api/attendance/*`, `/api/leaves/me/*`) → `403` เช่นกัน (ยิงจริงยืนยันแล้ว)
 
 ### 1.2 Origin header (กัน CSRF)
-- ทุก **POST / PATCH / DELETE** (ยกเว้น `POST /api/auth/register`) ต้องส่ง header `Origin` ที่ host ตรงกับ URL
+- ทุก endpoint ที่เปลี่ยนข้อมูลต้องส่ง header `Origin` ที่ host ตรงกับ URL; register ถูกปิดและไม่เปลี่ยนข้อมูล จึงคืน `410 REGISTRATION_DISABLED`
 - ไม่มี/ไม่ตรง → `403 { code: CSRF_REJECTED }` (ยิงจริงยืนยันแล้ว)
 - ใน Postman: ใส่ `Origin: http://localhost:3000` ทุกครั้งที่ยิง mutation + เปิด cookie jar
 
@@ -31,7 +31,9 @@ Base URL (local): `http://localhost:3000` (ตอนตรวจใช้ `:3100
 | 401 | `UNAUTHENTICATED` / `INVALID_CREDENTIALS` | ยังไม่ login / username หรือ password ผิด |
 | 403 | `CSRF_REJECTED` / `FORBIDDEN` | Origin ผิด / role ไม่ถึง |
 | 404 | `NOT_FOUND` | ไม่พบ record (รวมของคนอื่น — ไม่บอกว่ามีอยู่) |
-| 409 | `CONFLICT` / `ALREADY_CHECKED_OUT` / `CHECK_IN_REQUIRED` / `LAST_ADMIN_PROTECTION` | ข้อมูลชน / ลำดับ check-in/out ผิด |
+| 409 | `CONFLICT` / `IMPORT_CONFLICT` / `ALREADY_CHECKED_OUT` / `CHECK_IN_REQUIRED` / `LAST_ADMIN_PROTECTION` | ข้อมูลชน / ลำดับ check-in/out ผิด |
+| 410 | `REGISTRATION_DISABLED` | ปิดการสมัคร STUDENT เอง |
+| 413 | `PAYLOAD_TOO_LARGE` | request import มีขนาดเกิน 1 MB |
 | 429 | `RATE_LIMITED` | login ผิดเกิน 10 ครั้งใน 15 นาที (ต่อ username, case-insensitive) |
 | 500 | `INTERNAL_ERROR` | ผิดพลาดฝั่งเซิร์ฟเวอร์ |
 
@@ -44,43 +46,28 @@ Base URL (local): `http://localhost:3000` (ตอนตรวจใช้ `:3100
 
 ---
 
-## 2. Auth (public)
+## 2. Auth and student onboarding
 
-### `POST /api/auth/register` — สมัครบัญชี STUDENT
-- **Auth:** public, **ไม่ต้องใช้ Origin** (เส้นเดียวที่ยกเว้น)
-- **Body (JSON):**
-
-```json
-{
-  "firstName": "สมชาย",
-  "lastName": "ใจดี",
-  "studentId": "68012345",
-  "employeeCode": "EMP001",
-  "shopCode": "BKK01",
-  "gradeLevel": 3,
-  "password": "รหัสผ่านอย่างน้อย12ตัวอักษร"
-}
-```
-
-| field | กติกา |
-|---|---|
-| firstName/lastName | string 1–80 ตัวอักษร (trim) |
-| studentId | string 1–40 (trim) → ใช้เป็น `username` ด้วย |
-| employeeCode/shopCode | optional, string ≤40 หรือ `""` |
-| gradeLevel | optional, int 1–20 (coerce รับ `"3"` ได้) → เขียนลง `gradeLevel` และ `yearLevel` พร้อมกัน |
-| password | string 12–128 ตัวอักษร, เก็บแบบ argon2id |
-
-- **สำเร็จ `201`:** `{ user: { id, username, studentId, employeeCode, shopCode, gradeLevel, firstName, lastName, role: "STUDENT", createdAt } }` (role ล็อกโดย server)
-- **ยิงจริง:** `201` สร้างได้ / สมัคร `studentId` ซ้ำ → `409 CONFLICT` / password สั้น → `400`
-- **Note:** ซ้ำเช็ก `username OR studentId OR employeeCode` (ถ้าส่งมา)
+### `POST /api/auth/register` — ปิดการสมัครเอง
+- **Auth:** public; ไม่อ่าน body และไม่สร้างบัญชี
+- **Response:** `410 { "error": { "code": "REGISTRATION_DISABLED", "message": "Student self-registration is disabled" } }`
+- บัญชีนักศึกษาต้องสร้างผ่าน `POST /api/admin/users/import` โดย ADMIN เท่านั้น
 
 ### `POST /api/auth/login` — เข้าสู่ระบบ
 - **Auth:** public + ต้องมี `Origin`
-- **Body:** `{ "username": "<studentId | username | employeeCode>", "password": "..." }` (username trim 1–80, password 1–128)
+- **Body:** `{ "username": "<studentId | username | admin employeeCode>", "password": "..." }` (username trim 1–80, password 1–128); นักศึกษาใช้ studentId เป็น username
 - **สำเร็จ `200`:** `{ user: { id, firstName, lastName, username, role } }` + ตั้ง cookie
 - **ยิงจริง:** ถูก → `200` + ได้ cookie / ผิด → `401 INVALID_CREDENTIALS` / ไม่มี Origin → `403`
 - **Rate limit:** ผิดครบ 10 ครั้งใน 15 นาที → `429` (ไม่ได้ยิงทดสอบจนล็อก เพื่อไม่ให้บัญชีทดสอบโดนบล็อก — อ่านจาก `lib/auth.ts:75-96`)
 - **Note:** ไม่เจอ user ก็ยัง verify password ด้วย dummy hash เพื่อกัน timing attack; login สำเร็จล้างตัวนับ; บัญชี `isActive=false` login ไม่ได้
+
+### `POST /api/admin/users/import` — นำเข้าบัญชีนักศึกษา
+- **Auth:** ADMIN + ต้องมี `Origin` ตรงกับ host ของ URL
+- **Body:** `{ "rows": [{ "line": 2, "studentId": "68012345", "firstName": "สมชาย", "lastName": "ใจดี", "employeeCode": "EMP001", "shopCode": "BKK01", "gradeLevel": 3 }] }`
+- สูงสุด 500 รายชื่อและ body ไม่เกิน 1 MB; `studentId`, `firstName`, `lastName`, `employeeCode` เป็นข้อมูลบังคับ; `shopCode` และ `gradeLevel` เป็น optional
+- studentId และ employeeCode ต้องไม่ซ้ำกันข้ามทั้งสองฟิลด์ภายในไฟล์ และต้องไม่ชน username/studentId/employeeCode ที่มีอยู่ในฐานข้อมูล; หากพบข้อมูลซ้ำจะไม่สร้างรายการใดใน batch
+- สำเร็จ `201`: `{ "importedCount": 1 }`; password เริ่มต้นคือ employeeCode, เก็บด้วย Argon2id hash และไม่ส่ง hash หรือ password กลับใน response
+- กรณี unique conflict ที่เกิดพร้อมกันจากคำขออื่น ฐานข้อมูลปฏิเสธ `createMany` ทั้ง batch เช่นกัน (`409 CONFLICT`)
 
 ### `POST /api/auth/logout` — ออกจากระบบ
 - **Auth:** ไม่บังคับ login (ล้าง cookie ถ้ามี) + ต้องมี `Origin`
@@ -221,17 +208,17 @@ Response: `{ month, year, items: [{ ..., attendance: { workDate, user: {...} } }
 6. **`shopCode` ใน report endpoints ไม่ validate** (ต่างจาก endpoint อื่นที่ `max(40)`) — ควรใช้ schema เดียวกัน
 7. **Rate limit (429) ไม่ได้ยิงทดสอบ** — จงใจเลี่ยงเพื่อไม่ให้บัญชีโดนบล็อก 15 นาที โค้ดอ่านแล้วถูกต้อง (`≥10 ครั้ง/15 นาที ต่อ identifier`)
 8. **รูปทดสอบอัปโหลดขึ้น Cloudinary จริง** — ข้อมูลทดสอบลบจาก DB แล้ว แต่ไฟล์รูปยังค้างบน Cloudinary (folder `attendance/<userId>/...`) ควรลบ manual ถ้าซีเรียส
-9. `API.md` เดิมยังใช้ได้ แต่ไม่ตรงโค้ด 2 จุด: ไม่ได้บอกว่า `register` ไม่ต้องใช้ Origin (เส้นอื่นต้องใช้), และไม่บอกว่า `PATCH leave` ต้องส่งครบ — เอกสารฉบับนี้แก้ให้แล้ว
+9. `API.md` เป็นสรุป endpoint; ดูรายละเอียด import, auth และ response ในเอกสารนี้ประกอบ
 
 ---
 
 ## 8. วิธีเรียกด้วย Postman (สรุป)
 
-1. `POST /api/auth/register` (JSON, ไม่ต้องมี Origin) → สร้าง STUDENT
-2. `POST /api/auth/login` (JSON + header `Origin: http://localhost:3000`) → ได้ cookie (เปิด cookie jar)
-3. ใส่ `Origin` ทุก POST/PATCH/DELETE; multipart (check-in/out) เลือก `form-data`: `image`(file), `moneyAmount`(text), `moneyType`(text), `note`(text, optional)
-4. หมดอายุ session (12 ชม.) / logout แล้วจะได้ `401` ต้อง login ใหม่
-5. Admin: ต้องมีบัญชี role ADMIN (สมัครได้อย่างเดียวคือ STUDENT → ให้ ADMIN คนแรกปรับ role ผ่าน `PATCH /api/admin/users/{id}/role` หรืออัปเดต DB ตรง)
+1. `POST /api/auth/register` ถูกปิดและคืน `410 REGISTRATION_DISABLED`
+2. Admin login ด้วยบัญชี ADMIN ที่ provision ไว้ แล้ว `POST /api/admin/users/import` ด้วย JSON และ header `Origin: http://localhost:3000` เพื่อสร้างบัญชีนักศึกษา
+3. `POST /api/auth/login` (JSON + header `Origin: http://localhost:3000`) → ได้ cookie (เปิด cookie jar); นักศึกษาใช้ studentId และ employeeCode เป็นรหัสผ่านเริ่มต้น
+4. ใส่ `Origin` ทุก POST/PATCH/DELETE; multipart (check-in/out) เลือก `form-data`: `image`(file), `moneyAmount`(text), `moneyType`(text), `note`(text, optional)
+5. หมดอายุ session (12 ชม.) / logout แล้วจะได้ `401` ต้อง login ใหม่
 
 ## 9. คำสั่งที่เกี่ยวข้อง
 

@@ -6,8 +6,9 @@ Pagination: `page` defaults to 1; `pageSize` defaults to 20 and is capped at 100
 
 | Method and endpoint | Access | Purpose |
 |---|---|---|
-| `POST /api/auth/register` | Public | Create a STUDENT account. JSON: `firstName,lastName,studentId,password`; optional `employeeCode,shopCode,gradeLevel`. Password minimum 12 characters. Role is always assigned by server. |
-| `POST /api/auth/login` | Public | JSON `{ "username": "student id", "password": "â€¦" }`; generic invalid credential response. |
+| `POST /api/auth/register` | Disabled | Always returns `410 REGISTRATION_DISABLED`; student self-registration is closed. |
+| `POST /api/auth/login` | Public | JSON `{ "username": "student id", "password": "â€¦" }`; students sign in with student ID, and ADMIN may also use employeeCode. |
+| `POST /api/admin/users/import` | ADMIN | Same-origin JSON `{ "rows": [...] }`, max 500 rows / 1 MB. Each row requires `line,studentId,firstName,lastName,employeeCode`; `shopCode,gradeLevel` are optional. `employeeCode` is the initial password and is stored only as an Argon2id hash. Duplicate identifiers within the file or database reject the entire import. Success: `{ "importedCount": n }`. |
 | `POST /api/auth/logout` | Authenticated | Clear session cookie. |
 | `POST /api/attendance/check-in` | STUDENT | Multipart fields: `image`, `moneyAmount` (nonnegative decimal, 2 places), `moneyType` (`CASH`/`TRUEMONEY`), optional `note`. |
 | `POST /api/attendance/check-out` | STUDENT | Same multipart fields; requires today's check-in. |
@@ -31,7 +32,7 @@ Pagination: `page` defaults to 1; `pageSize` defaults to 20 and is capped at 100
 | `GET/PATCH /api/admin/users/{id}` | ADMIN | Read/update profile and account status. |
 | `PATCH /api/admin/users/{id}/role` | ADMIN | JSON `{ "role":"ADMIN"|"STUDENT" }`. |
 
-Common errors: `400` validation, `401` missing/invalid session, `403` insufficient permission/origin, `404` not found, `409` duplicate or invalid attendance state, `429` login identifier temporarily blocked after 10 failed attempts in a 15 minute window, `500` generic server failure. The API does not expose password hashes.
+Common errors: `400` validation, `401` missing/invalid session, `403` insufficient permission/origin, `404` not found, `409` duplicate or invalid attendance state, `410 REGISTRATION_DISABLED` self-registration closed, `413 PAYLOAD_TOO_LARGE` import body over 1 MB, `429` login identifier temporarily blocked after 10 failed attempts in a 15 minute window, `500` generic server failure. The API does not expose password hashes.
 
 ## Setup
 
@@ -41,4 +42,3 @@ Common errors: `400` validation, `401` missing/invalid session, `403` insufficie
 4. Run `npm run dev`.
 
 For Postman, select `multipart/form-data` for attendance writes and JSON for account and leave requests. Keep the cookie jar enabled and send `Origin: http://localhost:3000` when calling mutation endpoints locally. Login first, then call protected APIs.
-
