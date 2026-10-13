@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { currentUser } from "@/lib/auth";
+
 const iconProps = {
   width: 24,
   height: 24,
@@ -57,7 +59,15 @@ const features: { title: string; desc: string; icon: ReactNode }[] = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await currentUser();
+  const dashboardHref =
+    session?.role === "ADMIN"
+      ? "/admin"
+      : session?.role === "STUDENT"
+        ? "/student"
+        : null;
+
   return (
     <main
       className="flex min-h-screen flex-col items-center gap-7 px-6 pb-10 pt-14 text-white"
@@ -101,10 +111,19 @@ export default function HomePage() {
 
       {/* Login buttons */}
       <div className="flex w-full max-w-[720px] flex-wrap gap-3">
-        <Link
-          href="/login?role=student"
-          className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-white px-6 text-[17px] font-semibold text-[#0b2f5c] shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
-        >
+        {dashboardHref ? (
+          <Link
+            href={dashboardHref}
+            className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-white px-6 text-[17px] font-semibold text-[#0b2f5c] shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
+          >
+            ไปหน้าของฉัน
+          </Link>
+        ) : (
+          <>
+            <Link
+              href="/login?role=student"
+              className="flex min-h-14 flex-[1_1_300px] items-center justify-center gap-2.5 rounded-[14px] bg-white px-6 text-[17px] font-semibold text-[#0b2f5c] shadow-[0_6px_18px_rgba(0,0,0,0.2)] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666]"
+            >
           <svg
             width="22"
             height="22"
@@ -143,6 +162,8 @@ export default function HomePage() {
           </svg>
           เข้าสู่ระบบสำหรับเจ้าหน้าที่ศูนย์การเรียน
         </Link>
+          </>
+        )}
       </div>
 
       {/* Account notice */}

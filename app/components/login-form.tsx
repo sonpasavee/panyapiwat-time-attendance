@@ -35,15 +35,18 @@ export default function LoginForm({ role }: LoginFormProps) {
       }
 
       if (result.user?.role !== (role === "admin" ? "ADMIN" : "STUDENT")) {
+        await fetch("/api/auth/logout", { method: "POST" });
         setError(
           "บัญชีนี้ไม่มีสิทธิ์เข้าสู่ระบบในส่วนที่เลือก กรุณาเลือกประเภทผู้ใช้ให้ถูกต้อง",
         );
         return;
       }
 
-      setSuccess(
-        `ยินดีต้อนรับ ${result.user.firstName} ${result.user.lastName}`,
-      );
+      if (role === "student") {
+        window.location.assign("/student");
+      } else {
+        window.location.assign("/admin");
+      }
     } catch {
       setError(
         "ไม่สามารถเชื่อมต่อระบบได้ กรุณาตรวจสอบเครือข่ายแล้วลองอีกครั้ง",
