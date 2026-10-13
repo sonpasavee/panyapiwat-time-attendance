@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 import { requireStudentPage } from "@/lib/page-auth";
-import { MONEY_LABEL, formatDate } from "@/lib/format";
-import { monthYear } from "@/validators/api";
+import { MONEY_LABEL, bangkokDateKey, formatDate } from "@/lib/format";
+import { monthYear, pagination } from "@/validators/api";
 import { getMyMoneyReport } from "@/services/money-tracker.service";
 
+import Pager from "../../components/pager";
 import { Card } from "../../components/ui";
 
 export const instant = false;
@@ -12,6 +13,9 @@ export const instant = false;
 type SearchParams = {
   month?: string | string[];
   year?: string | string[];
+  date?: string | string[];
+  page?: string | string[];
+  pageSize?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
@@ -103,8 +107,30 @@ export default async function StudentMoneyPage({
       ...(first(params.year) ? { year: first(params.year)! } : {}),
     }),
   );
+  const { page, pageSize } = pagination(
+    new URLSearchParams({
+      ...(first(params.page) ? { page: first(params.page)! } : {}),
+      ...(first(params.pageSize) ? { pageSize: first(params.pageSize)! } : {}),
+    }),
+  );
+
+  const rawDate = first(params.date)?.trim() ?? "";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : "";
 
   const money = await getMyMoneyReport(session.id, month, year);
+
+  const filtered = date
+    ? money.entries.filter((e) => bangkokDateKey(e.attendance.workDate) === date)
+    : money.entries;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageEntries = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const pagerParams: Record<string, string> = {
+    month: String(month),
+    year: String(year),
+    ...(date ? { date } : {}),
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-5">
@@ -149,21 +175,57 @@ export default async function StudentMoneyPage({
         </div>
       </section>
 
-      <Card label="รายการเดินเงิน" className="card-pad">
-        <div className="flex items-center justify-between gap-3">
+      <Card label="รายการเดินเงิน" className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5">
           <h2 className="m-0 text-[17px] font-semibold">รายการเดินเงิน</h2>
-          <span className="text-sm muted">{money.entries.length} รายการ</span>
+          <span className="text-sm muted">{filtered.length} รายการ</span>
         </div>
-        {money.entries.length === 0 ? (
-          <p className="muted mt-3.5 text-sm">เดือนนี้ยังไม่มีรายการเดินเงิน</p>
+
+        <form method="get" className="flex flex-wrap items-end gap-2.5 px-6 pt-4">
+          <input type="hidden" name="month" value={month} />
+          <input type="hidden" name="year" value={year} />
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="money-date" className="field-label">
+              กรองตามวันที่
+            </label>
+            <input
+              id="money-date"
+              name="date"
+              type="date"
+              defaultValue={date}
+              className="input min-h-[44px] w-auto"
+            />
+          </div>
+          <button type="submit" className="btn btn-outline">
+            กรอง
+          </button>
+          {date && (
+            <Link
+              href={`/student/money?month=${month}&year=${year}`}
+              className="btn btn-soft"
+            >
+              ล้าง
+            </Link>
+          )}
+        </form>
+        {date && (
+          <p className="m-0 px-6 pt-2.5 text-sm muted">
+            กำลังแสดงเฉพาะวันที่ {formatDate(date)}
+          </p>
+        )}
+
+        {pageEntries.length === 0 ? (
+          <p className="muted px-6 py-6 text-sm">
+            {date ? "วันที่เลือกยังไม่มีรายการเดินเงิน" : "เดือนนี้ยังไม่มีรายการเดินเงิน"}
+          </p>
         ) : (
-          <ul className="m-0 mt-1 list-none p-0">
-            {money.entries.map((entry) => {
+          <ul className="m-0 list-none p-0 px-6">
+            {pageEntries.map((entry) => {
               const isIn = entry.direction === "IN";
               return (
                 <li
                   key={entry.id}
-                  className="flex items-center gap-3.5 border-b border-[#edf1f7] py-4 last:border-b-0 last:pb-1"
+                  className="flex items-center gap-3.5 border-b border-[#edf1f7] py-4 last:border-b-0"
                 >
                   <span
                     aria-hidden="true"
@@ -195,6 +257,15 @@ export default async function StudentMoneyPage({
             })}
           </ul>
         )}
+
+        <Pager
+          pathname="/student/money"
+          params={pagerParams}
+          page={safePage}
+          totalPages={totalPages}
+          numbered
+          summary={`ทั้งหมด ${filtered.length} รายการ`}
+        />
       </Card>
     </div>
   );
