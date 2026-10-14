@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import DashboardNav, { type NavItem } from "./dashboard-nav";
+import BrandLogo from "./brand-logo";
 import LogoutButton from "./logout-button";
 import {
   MobileUserLabel,
@@ -58,12 +59,6 @@ function UploadIcon() {
   );
 }
 
-function LogoIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5-10-5z" /><path d="M6 11.5V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.5" /><path d="M22 9v6" /></svg>
-  );
-}
-
 export const studentNavItems: NavItem[] = [
   { href: "/student", label: "แดชบอร์ด", icon: <GridIcon />, exact: true },
   { href: "/student/check-in", label: "เช็กอิน / เช็กเอาท์", icon: <ClockIcon /> },
@@ -98,9 +93,9 @@ export default function DashboardShell({
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#e3e9f2] bg-white px-5 py-3 lg:hidden">
         <div
           aria-hidden="true"
-          className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#1d63d8] text-white"
+          className="flex h-9 items-center rounded-[10px] bg-[#1d63d8] px-2"
         >
-          <LogoIcon />
+          <BrandLogo className="h-auto w-[76px]" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="m-0 truncate text-[15px] font-bold leading-tight">
@@ -121,9 +116,9 @@ export default function DashboardShell({
           <div className="flex items-center gap-3 px-2">
             <div
               aria-hidden="true"
-              className="flex h-[42px] w-[42px] items-center justify-center rounded-xl bg-[#1d63d8] text-white"
+              className="flex items-center rounded-xl bg-[#1d63d8] px-3 py-2"
             >
-              <LogoIcon />
+              <BrandLogo className="h-auto w-[112px]" />
             </div>
             <div>
               <p className="m-0 text-base font-bold leading-snug">ระบบฝึกอาชีพ</p>

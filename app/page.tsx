@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import { currentUser } from "@/lib/auth";
+import BrandLogo from "./components/brand-logo";
 
 const iconProps = {
   width: 24,
@@ -152,24 +153,8 @@ export default function HomePage() {
     >
       {/* Header */}
       <header className="flex w-full max-w-[720px] flex-col items-center gap-[18px] text-center">
-        {/* TODO: เปลี่ยนเป็นโลโก้จริงของศูนย์การเรียน เช่น <Image src="/logo.png" ... /> */}
-        <div className="flex h-[88px] w-[88px] items-center justify-center rounded-[22px] bg-white text-[#0b2f5c] shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
-          <svg
-            width="46"
-            height="46"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            role="img"
-            aria-label="โลโก้ศูนย์การเรียน"
-          >
-            <path d="M2 9l10-5 10 5-10 5-10-5z" />
-            <path d="M6 11.5V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.5" />
-            <path d="M22 9v6" />
-          </svg>
+        <div aria-hidden="true" className="flex justify-center">
+          <BrandLogo priority className="h-auto w-[min(300px,78vw)]" />
         </div>
 
         <h1 className="text-[28px] font-bold leading-[1.35] sm:text-[38px]">
