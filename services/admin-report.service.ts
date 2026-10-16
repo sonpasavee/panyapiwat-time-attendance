@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/db";
 import { monthRange } from "@/lib/time";
+import {
+  amountToCents,
+  centsToAmount,
+  summarizeDailyMoney,
+  type DailyMoneySummary,
+} from "@/services/money-tracker.logic";
 
 export type ReportUserFilter = {
   shopCode?: string;
@@ -30,6 +36,7 @@ export type DailyRow = {
   checkOutPhotoUrl: string | null;
   leaveType: "SICK" | "PERSONAL" | "HOLIDAY" | null;
   status: DailyRowStatus;
+  moneySummary: DailyMoneySummary | null;
 };
 
 export type MonthlyRow = {
@@ -116,6 +123,9 @@ export async function getDailyReport(
             workMinutes: true,
             checkInPhotoUrl: true,
             checkOutPhotoUrl: true,
+            money: {
+              select: { moneyType: true, direction: true, amount: true },
+            },
           },
         }),
     ids.length === 0
@@ -155,6 +165,7 @@ export async function getDailyReport(
       checkOutPhotoUrl: att?.checkOutPhotoUrl ?? null,
       leaveType,
       status,
+      moneySummary: att ? summarizeDailyMoney(att.money) : null,
     };
   });
 
@@ -274,6 +285,7 @@ export type UserMonthDay = {
   checkOutAt: Date | null;
   workMinutes: number | null;
   leaveType: "SICK" | "PERSONAL" | "HOLIDAY" | null;
+  moneySummary: DailyMoneySummary | null;
 };
 
 // รายละเอียดรายบุคคล: แถวรายวันทั้งเดือน (ลงเวลา + วันที่ลาโดยไม่มีลงเวลา)
@@ -301,6 +313,9 @@ export async function getUserMonthlyDetail(
         workMinutes: true,
         checkInPhotoUrl: true,
         checkOutPhotoUrl: true,
+        money: {
+          select: { moneyType: true, direction: true, amount: true },
+        },
       },
       orderBy: { workDate: "asc" },
     }),
@@ -349,6 +364,7 @@ export async function getUserMonthlyDetail(
             : null))
         : null,
       leaveType: leaveByDate.get(iso) ?? null,
+      moneySummary: att ? summarizeDailyMoney(att.money) : null,
     });
   }
 
@@ -357,6 +373,14 @@ export async function getUserMonthlyDetail(
   const totalMinutes = days.reduce((sum, d) => sum + (d.workMinutes ?? 0), 0);
   const leaveDays = days.filter((d) => !d.checkInAt && d.leaveType).length;
   const leaveTypes = [...new Set(leaves.map((l) => l.type))];
+  // ยอดใช้เงินรวมเดือนนี้ (นับเฉพาะวันที่สรุปยอดได้)
+  const totalSpent = centsToAmount(
+    days.reduce(
+      (sum, d) =>
+        sum + (d.moneySummary?.complete ? amountToCents(d.moneySummary.totalSpent) : 0),
+      0,
+    ),
+  );
 
   return {
     user,
@@ -385,6 +409,7 @@ export async function getUserMonthlyDetail(
       totalMinutes,
       leaveDays,
       leaveTypes,
+      totalSpent,
       averageMinutes:
         attendanceDays > 0 ? Math.round(totalMinutes / attendanceDays) : 0,
     },

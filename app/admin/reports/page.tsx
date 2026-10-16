@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { requireAdminPage } from "@/lib/page-auth";
+import { formatSpent } from "@/lib/format";
 import { monthYear } from "@/validators/api";
 import {
   getDailyReport,
@@ -340,6 +341,7 @@ export default async function AdminReportsPage({
                     <th scope="col">เช็กอิน</th>
                     <th scope="col">เช็กเอาท์</th>
                     <th scope="col">ชั่วโมงการทำงาน</th>
+                    <th scope="col">เงินใช้ไป</th>
                     <th scope="col">สถานะ</th>
                   </tr>
                 </thead>
@@ -367,6 +369,17 @@ export default async function AdminReportsPage({
                           : row.status === "WORKING"
                             ? "กำลังนับเวลา…"
                             : "–"}
+                      </td>
+                      <td className="font-semibold tabular-nums">
+                        {(() => {
+                          if (!row.moneySummary?.complete) return "–";
+                          const shown = formatSpent(row.moneySummary.totalSpent);
+                          return (
+                            <span style={shown.isGain ? { color: "#16a34a" } : undefined}>
+                              {shown.text}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td><StatusBadge status={row.status} /></td>
                     </tr>

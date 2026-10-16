@@ -20,6 +20,19 @@ export const LEAVE_LABEL: Record<string, string> = {
   PERSONAL: "ลากิจ",
 };
 
+// ยอด "ใช้ไป" สำหรับโชว์บนจอ — ห้ามโชว์เครื่องหมายลบให้ user งง
+// ติดลบ = ได้เงินเพิ่มระหว่างวัน ให้พูดเป็น "เงินเพิ่ม ฿X" แทน "-฿X"
+export function formatSpent(value: string): {
+  text: string;
+  isGain: boolean;
+} {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("-")) {
+    return { text: `เงินเพิ่ม ฿${trimmed.slice(1)}`, isGain: true };
+  }
+  return { text: `฿${trimmed}`, isGain: false };
+}
+
 export const MONEY_LABEL: Record<string, string> = {
   CASH: "เงินสด",
   TRUEMONEY: "TrueMoney",

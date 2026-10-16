@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bangkokWorkDate, monthRange } from "../lib/time.ts";
 import { summarizeShifts } from "../services/monthly-report.logic.ts";
-import { summarizeMoneyEntries } from "../services/money-tracker.logic.ts";
+import { summarizeMoneyEntries, summarizeDailyMoney } from "../services/money-tracker.logic.ts";
 import { checkOutRuleError } from "../services/attendance.logic.ts";
 import {
   leaveSchema,
@@ -10,6 +10,7 @@ import {
   studentImportSchema,
 } from "../validators/api.ts";
 import { decodeCsvBytes } from "../lib/csv-encoding.ts";
+import { formatSpent } from "../lib/format.ts";
 
 test("Bangkok work date rolls over at Bangkok midnight", () => {
   assert.equal(
@@ -62,6 +63,46 @@ test("money tracker service totals remain exact and separate by payment type", (
     { moneyType: "TRUEMONEY", direction: "OUT", amount: "1.25" },
   ]);
   assert.deepEqual(totals, { CASH: { in: "10.05", out: "2.01", net: "8.04" }, TRUEMONEY: { in: "3.00", out: "1.25", net: "1.75" }, net: "9.79" });
+});
+
+test("daily money summary computes spent per type and total", () => {
+  const summary = summarizeDailyMoney([
+    { moneyType: "CASH", direction: "IN", amount: "100.00" },
+    { moneyType: "CASH", direction: "OUT", amount: "60.50" },
+    { moneyType: "TRUEMONEY", direction: "IN", amount: "50.00" },
+    { moneyType: "TRUEMONEY", direction: "OUT", amount: "20.00" },
+  ]);
+  assert.deepEqual(summary, {
+    CASH: { in: "100.00", out: "60.50", spent: "39.50", complete: true },
+    TRUEMONEY: { in: "50.00", out: "20.00", spent: "30.00", complete: true },
+    totalSpent: "69.50",
+    complete: true,
+  });
+});
+
+test("daily money summary tolerates missing type or missing checkout", () => {
+  // มีแค่เงินสดขาเข้า (ยังไม่เช็กเอาท์) + ไม่มี TrueMoney เลย
+  const summary = summarizeDailyMoney([
+    { moneyType: "CASH", direction: "IN", amount: "100.00" },
+  ]);
+  assert.equal(summary.CASH.complete, false);
+  assert.equal(summary.TRUEMONEY.complete, false);
+  assert.equal(summary.complete, false);
+  assert.equal(summary.totalSpent, "100.00");
+
+  // OUT มากกว่า IN (ได้เงินเพิ่มระหว่างวัน) = ใช้ไปติดลบ
+  const negative = summarizeDailyMoney([
+    { moneyType: "CASH", direction: "IN", amount: "100.00" },
+    { moneyType: "CASH", direction: "OUT", amount: "120.50" },
+  ]);
+  assert.equal(negative.CASH.spent, "-20.50");
+  assert.equal(negative.complete, true);
+});
+
+test("spent display never shows a minus sign to users", () => {
+  assert.deepEqual(formatSpent("230.00"), { text: "฿230.00", isGain: false });
+  assert.deepEqual(formatSpent("-60.00"), { text: "เงินเพิ่ม ฿60.00", isGain: true });
+  assert.deepEqual(formatSpent("0.00"), { text: "฿0.00", isGain: false });
 });
 
 test("money validation accepts exact decimal strings and rejects negative/over precision", () => {

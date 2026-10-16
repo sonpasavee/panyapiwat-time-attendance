@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAdminPage } from "@/lib/page-auth";
+import { formatSpent } from "@/lib/format";
 import { idSchema, monthYear } from "@/validators/api";
 import { getUserMonthlyDetail } from "@/services/admin-report.service";
 
@@ -265,6 +266,20 @@ export default async function AdminUserReportPage({
       </section>
 
       <section aria-label="ประวัติรายวัน" className="card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-6 pt-5 pb-1">
+          <h2 className="m-0 text-[17px] font-semibold">ประวัติรายวัน</h2>
+          {(() => {
+            const total = formatSpent(detail.totals.totalSpent);
+            return (
+              <span
+                className="text-sm font-semibold tabular-nums"
+                style={{ color: total.isGain ? "#16a34a" : "#1750b8" }}
+              >
+                {total.isGain ? total.text : `ใช้เงินรวมเดือนนี้ ${total.text}`}
+              </span>
+            );
+          })()}
+        </div>
         {tableDays.length === 0 ? (
           <p className="muted px-6 py-6 text-sm">
             เดือนนี้ยังไม่มีข้อมูลการลงเวลา
@@ -282,6 +297,7 @@ export default async function AdminUserReportPage({
                   <th scope="col">เช็กอิน</th>
                   <th scope="col">เช็กเอาท์</th>
                   <th scope="col">ชั่วโมงการทำงาน</th>
+                  <th scope="col">เงินใช้ไป</th>
                   <th scope="col">สถานะ</th>
                 </tr>
               </thead>
@@ -305,6 +321,17 @@ export default async function AdminUserReportPage({
                           : status === "WORKING"
                             ? "กำลังนับเวลา…"
                             : "–"}
+                      </td>
+                      <td className="font-semibold tabular-nums">
+                        {(() => {
+                          if (!d.moneySummary?.complete) return "–";
+                          const shown = formatSpent(d.moneySummary.totalSpent);
+                          return (
+                            <span style={shown.isGain ? { color: "#16a34a" } : undefined}>
+                              {shown.text}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td>
                         <StatusBadge status={status} />

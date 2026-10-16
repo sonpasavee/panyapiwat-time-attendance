@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 import { requireStudentPage } from "@/lib/page-auth";
-import { bangkokDateKey, formatDate, formatMinutes, formatTime } from "@/lib/format";
+import { bangkokDateKey, formatDate, formatMinutes, formatSpent, formatTime } from "@/lib/format";
 import { monthYear, pagination } from "@/validators/api";
 import { monthRange } from "@/lib/time";
 import { listMyAttendance } from "@/services/attendance.service";
+import { summarizeDailyMoney } from "@/services/money-tracker.logic";
 
 import Pager from "../../components/pager";
 import { Badge, Card } from "../../components/ui";
@@ -211,6 +212,26 @@ export default async function StudentHistoryPage({
                     <span className="sr-only">ถึง</span>
                     {formatTime(item.checkOutAt)}
                   </span>
+                  {(() => {
+                    const spent = summarizeDailyMoney(item.money);
+                    if (!spent.complete) return null;
+                    const total = formatSpent(spent.totalSpent);
+                    const cash = formatSpent(spent.CASH.spent);
+                    const truemoney = formatSpent(spent.TRUEMONEY.spent);
+                    return (
+                      <span
+                        className="mt-1 block text-sm font-semibold tabular-nums"
+                        style={{ color: total.isGain ? "#16a34a" : "#1750b8" }}
+                      >
+                        {total.isGain ? total.text : `ใช้ไป ${total.text}`}
+                        {!total.isGain && (
+                          <span className="muted font-normal">
+                            {" "}(สด {cash.text} • ทรู {truemoney.text})
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
                 </span>
                 <span className="flex flex-none items-center gap-2.5">
                   <span className="hidden text-right sm:block">

@@ -1,6 +1,7 @@
 import { requireStudentPage } from "@/lib/page-auth";
-import { formatMinutes, formatThaiHeader, formatTime } from "@/lib/format";
+import { formatMinutes, formatSpent, formatThaiHeader, formatTime } from "@/lib/format";
 import { getTodayAttendance } from "@/services/attendance.service";
+import { summarizeDailyMoney } from "@/services/money-tracker.logic";
 
 import AttendanceForm from "../../components/attendance-form";
 import { Card } from "../../components/ui";
@@ -128,6 +129,10 @@ export default async function StudentCheckInPage() {
   const today = await getTodayAttendance(session.id);
   const checkedIn = !!today;
   const checkedOut = !!today?.checkOutAt;
+  const money = summarizeDailyMoney(today?.money ?? []);
+  const cashSpent = formatSpent(money.CASH.spent);
+  const trueSpent = formatSpent(money.TRUEMONEY.spent);
+  const totalSpent = formatSpent(money.totalSpent);
 
   const inTime = checkedIn ? `${formatTime(today?.checkInAt)} น.` : "–";
   const outTime = checkedOut ? `${formatTime(today?.checkOutAt)} น.` : "–";
@@ -256,6 +261,64 @@ export default async function StudentCheckInPage() {
           </div>
         </section>
       </div>
+
+      {/* สรุปเงินวันนี้ */}
+      {checkedIn && (
+        <section aria-labelledby="money-h" className="card card-pad">
+          <h2 id="money-h" className="m-0 text-[17px] font-semibold">สรุปเงินวันนี้</h2>
+          <div className="mt-4 overflow-x-auto">
+            <table className="tbl">
+              <caption className="sr-only">เงินที่นำเข้า คงเหลือ และใช้ไป แยกตามประเภท</caption>
+              <thead>
+                <tr>
+                  <th scope="col">ประเภท</th>
+                  <th scope="col">เอาเข้า (บาท)</th>
+                  <th scope="col">คงเหลือ (บาท)</th>
+                  <th scope="col">ใช้ไป (บาท)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="font-semibold">เงินสด</td>
+                  <td className="tabular-nums">฿{money.CASH.in}</td>
+                  <td className="tabular-nums">{checkedOut ? `฿${money.CASH.out}` : "–"}</td>
+                  <td
+                    className="font-semibold tabular-nums"
+                    style={cashSpent.isGain ? { color: "#16a34a" } : undefined}
+                  >
+                    {money.CASH.complete ? cashSpent.text : "รอเช็กเอาท์"}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="font-semibold">TrueMoney</td>
+                  <td className="tabular-nums">฿{money.TRUEMONEY.in}</td>
+                  <td className="tabular-nums">{checkedOut ? `฿${money.TRUEMONEY.out}` : "–"}</td>
+                  <td
+                    className="font-semibold tabular-nums"
+                    style={trueSpent.isGain ? { color: "#16a34a" } : undefined}
+                  >
+                    {money.TRUEMONEY.complete ? trueSpent.text : "รอเช็กเอาท์"}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="font-semibold">รวม</td>
+                  <td className="tabular-nums">–</td>
+                  <td className="tabular-nums">–</td>
+                  <td
+                    className="font-bold tabular-nums"
+                    style={{ color: totalSpent.isGain ? "#16a34a" : "#1750b8" }}
+                  >
+                    {money.complete ? totalSpent.text : "รอเช็กเอาท์"}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="muted mt-3 text-[13px]">
+            ใช้ไป = เงินที่เอาเข้า − เงินคงเหลือตอนเช็กเอาท์ (ติดลบ = ได้เงินเพิ่มระหว่างวัน)
+          </p>
+        </section>
+      )}
 
       {checkedOut ? (
         <div

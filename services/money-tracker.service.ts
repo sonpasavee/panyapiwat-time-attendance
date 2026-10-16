@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/db";
 
 import { monthRange } from "@/lib/time";
-import { summarizeMoneyEntries } from "@/services/money-tracker.logic";
+import {
+  amountToCents,
+  centsToAmount,
+  summarizeDailyMoney,
+  summarizeMoneyEntries,
+  type DailyMoneySummary,
+} from "@/services/money-tracker.logic";
 
 export async function getMyMoneyReport(
   userId: string,
@@ -36,6 +42,80 @@ export async function getMyMoneyReport(
     totals: {
       ...totals,
       note: "Recorded personal money movements; may differ from actual wallet balances",
+    },
+  };
+}
+
+export type DailyMoneyDay = {
+  dateISO: string;
+  summary: DailyMoneySummary;
+  // ยอดรวม 2 ประเภท (เอาเข้า / คงเหลือ)
+  inTotal: string;
+  outTotal: string;
+  // มีแถว OUT อย่างน้อยหนึ่งแถวหรือไม่ (ไม่มี = ยังไม่ได้กรอกคงเหลือ)
+  hasOut: boolean;
+};
+
+// สรุปรายวันของเดือน: 1 แถวต่อวันที่เช็กอิน (ใหม่ไปเก่า) + ยอดรวมเดือน
+// - ช่องที่เว้นว่าง = ไม่มีแถวบันทึก สูตรถือเป็น 0
+// - วันไม่ครบ (ไม่มีทั้ง IN+OUT อย่างน้อยหนึ่งประเภท) = ข้อมูลไม่ครบ ไม่นับยอดใช้รวม
+// - OUT > IN = ยอมให้บันทึก ใช้ไปติดลบ = ได้เงินเพิ่มระหว่างวัน
+export async function getMyDailyMoney(
+  userId: string,
+  month: number,
+  year: number,
+) {
+  const attendances = await prisma.attendance.findMany({
+    where: {
+      userId,
+      workDate: monthRange(year, month),
+    },
+    select: {
+      workDate: true,
+      money: {
+        select: { moneyType: true, direction: true, amount: true },
+      },
+    },
+    orderBy: { workDate: "desc" },
+  });
+
+  const days: DailyMoneyDay[] = attendances.map((att) => {
+    const summary = summarizeDailyMoney(att.money);
+    const hasOut = att.money.some((e) => e.direction === "OUT");
+    return {
+      dateISO: att.workDate.toISOString().slice(0, 10),
+      summary,
+      inTotal: centsToAmount(
+        amountToCents(summary.CASH.in) + amountToCents(summary.TRUEMONEY.in),
+      ),
+      outTotal: centsToAmount(
+        amountToCents(summary.CASH.out) + amountToCents(summary.TRUEMONEY.out),
+      ),
+      hasOut,
+    };
+  });
+
+  let inCents = 0;
+  let spentCents = 0;
+  let completeDays = 0;
+  for (const day of days) {
+    inCents += amountToCents(day.inTotal);
+    if (day.summary.complete) {
+      completeDays += 1;
+      spentCents += amountToCents(day.summary.totalSpent);
+    }
+  }
+
+  return {
+    month,
+    year,
+    days,
+    stats: {
+      totalIn: centsToAmount(inCents),
+      // ใช้ไปรวมเดือนนี้ — นับเฉพาะวันที่ข้อมูลครบ
+      totalSpent: centsToAmount(spentCents),
+      completeDays,
+      totalDays: days.length,
     },
   };
 }

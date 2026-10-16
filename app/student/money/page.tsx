@@ -1,11 +1,10 @@
 import Link from "next/link";
 
 import { requireStudentPage } from "@/lib/page-auth";
-import { MONEY_LABEL, bangkokDateKey, formatDate } from "@/lib/format";
-import { monthYear, pagination } from "@/validators/api";
-import { getMyMoneyReport } from "@/services/money-tracker.service";
+import { formatSpent } from "@/lib/format";
+import { monthYear } from "@/validators/api";
+import { getMyDailyMoney } from "@/services/money-tracker.service";
 
-import Pager from "../../components/pager";
 import { Card } from "../../components/ui";
 
 export const instant = false;
@@ -13,9 +12,6 @@ export const instant = false;
 type SearchParams = {
   month?: string | string[];
   year?: string | string[];
-  date?: string | string[];
-  page?: string | string[];
-  pageSize?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
@@ -27,6 +23,29 @@ const monthLong = new Intl.DateTimeFormat("th-TH", {
   month: "long",
   year: "numeric",
 });
+
+const dayNum = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  day: "numeric",
+});
+
+const monthShort = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  month: "short",
+});
+
+const weekdayShort = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  weekday: "short",
+});
+
+// ยอดการ์ดสถิติ: มี comma คั่นหลักพัน ตัดทศนิยมที่เป็นศูนย์ทิ้ง
+function compactBaht(value: string) {
+  return Number(value).toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
 
 function MonthNavigator({ month, year }: { month: number; year: number }) {
   const prev = month === 1 ? { month: 12, year: year - 1 } : { month: month - 1, year };
@@ -59,20 +78,20 @@ function MonthNavigator({ month, year }: { month: number; year: number }) {
   );
 }
 
-function BalanceCard({
+function StatCard({
   icon,
   chipBg,
   iconColor,
   label,
-  net,
-  flow,
+  value,
+  sub,
 }: {
   icon: React.ReactNode;
   chipBg: string;
   iconColor: string;
   label: string;
-  net: string;
-  flow: string;
+  value: string;
+  sub?: string;
 }) {
   return (
     <div className="card flex items-center gap-3.5 p-5">
@@ -86,9 +105,9 @@ function BalanceCard({
       <span className="min-w-0">
         <span className="muted block text-[13px]">{label}</span>
         <span className="block truncate text-[22px] font-bold leading-snug tabular-nums">
-          ฿{net}
+          {value}
         </span>
-        <span className="muted block text-[13px] tabular-nums">{flow}</span>
+        {sub && <span className="muted block text-[13px]">{sub}</span>}
       </span>
     </div>
   );
@@ -107,30 +126,12 @@ export default async function StudentMoneyPage({
       ...(first(params.year) ? { year: first(params.year)! } : {}),
     }),
   );
-  const { page, pageSize } = pagination(
-    new URLSearchParams({
-      ...(first(params.page) ? { page: first(params.page)! } : {}),
-      ...(first(params.pageSize) ? { pageSize: first(params.pageSize)! } : {}),
-    }),
-  );
 
-  const rawDate = first(params.date)?.trim() ?? "";
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : "";
-
-  const money = await getMyMoneyReport(session.id, month, year);
-
-  const filtered = date
-    ? money.entries.filter((e) => bangkokDateKey(e.attendance.workDate) === date)
-    : money.entries;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pageEntries = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  const pagerParams: Record<string, string> = {
-    month: String(month),
-    year: String(year),
-    ...(date ? { date } : {}),
-  };
+  const report = await getMyDailyMoney(session.id, month, year);
+  const monthSpent = formatSpent(report.stats.totalSpent);
+  const monthSpentText = monthSpent.isGain
+    ? `เงินเพิ่ม ฿${compactBaht(report.stats.totalSpent.slice(1))}`
+    : `฿${compactBaht(report.stats.totalSpent)}`;
 
   return (
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-5">
@@ -138,134 +139,111 @@ export default async function StudentMoneyPage({
         <div>
           <h1 className="m-0 text-[28px] font-bold leading-snug">เงินส่วนตัว</h1>
           <p className="mt-0.5 text-[15px] muted">
-            เดือน {month}/{year}
+            ประวัติเงินเอาเข้า คงเหลือ และใช้ไปรายวัน
           </p>
         </div>
         <MonthNavigator month={month} year={year} />
       </header>
 
-      <section aria-label="สรุปยอดเงิน" className="grid gap-4 sm:grid-cols-3">
-        <BalanceCard
+      <section aria-label="สรุปยอดเงินเดือนนี้" className="grid gap-4 sm:grid-cols-3">
+        <StatCard
           icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="14" rx="2" /><path d="M3 10h18" /></svg>}
           chipBg="#fef3c7"
-          iconColor="#78350f"
-          label="เงินสดคงเหลือ"
-          net={money.totals.CASH.net}
-          flow={`เข้า ฿${money.totals.CASH.in} • ออก ฿${money.totals.CASH.out}`}
+          iconColor="#92400e"
+          label="เอาเข้ารวมเดือนนี้"
+          value={`฿${compactBaht(report.stats.totalIn)}`}
         />
-        <BalanceCard
-          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3" /><path d="M11 18h2" /></svg>}
-          chipBg="#e0e7ff"
-          iconColor="#312e81"
-          label="TrueMoney คงเหลือ"
-          net={money.totals.TRUEMONEY.net}
-          flow={`เข้า ฿${money.totals.TRUEMONEY.in} • ออก ฿${money.totals.TRUEMONEY.out}`}
+        <StatCard
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" /></svg>}
+          chipBg="#eaf1ff"
+          iconColor="#1d63d8"
+          label="ใช้ไปรวมเดือนนี้"
+          value={monthSpentText}
+          sub="ไม่รวมวันที่ข้อมูลไม่ครบ"
         />
-        <div
-          className="flex flex-col justify-center gap-1 rounded-[18px] border border-[#1d63d8] p-5 text-white"
-          style={{ background: "linear-gradient(135deg, #1c5fd0 0%, #3b82f6 100%)" }}
-        >
-          <span className="block text-[13px] text-white/85">คงเหลือรวม</span>
-          <span className="block text-[26px] font-bold leading-snug tabular-nums">
-            ฿{money.totals.net}
-          </span>
-          <span className="block text-[13px] leading-snug text-white/85">
-            ยอดบันทึกส่วนตัว อาจไม่ตรงเงินในกระเป๋าจริง
-          </span>
-        </div>
+        <StatCard
+          icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
+          chipBg="#dcfce7"
+          iconColor="#15803d"
+          label="วันที่ข้อมูลครบ"
+          value={`${report.stats.completeDays} / ${report.stats.totalDays} วัน`}
+        />
       </section>
 
-      <Card label="รายการเดินเงิน" className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5">
-          <h2 className="m-0 text-[17px] font-semibold">รายการเดินเงิน</h2>
-          <span className="text-sm muted">{filtered.length} รายการ</span>
-        </div>
-
-        <form method="get" className="flex flex-wrap items-end gap-2.5 px-6 pt-4">
-          <input type="hidden" name="month" value={month} />
-          <input type="hidden" name="year" value={year} />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="money-date" className="field-label">
-              กรองตามวันที่
-            </label>
-            <input
-              id="money-date"
-              name="date"
-              type="date"
-              defaultValue={date}
-              className="input min-h-[44px] w-auto"
-            />
-          </div>
-          <button type="submit" className="btn btn-outline">
-            กรอง
-          </button>
-          {date && (
-            <Link
-              href={`/student/money?month=${month}&year=${year}`}
-              className="btn btn-soft"
-            >
-              ล้าง
-            </Link>
-          )}
-        </form>
-        {date && (
-          <p className="m-0 px-6 pt-2.5 text-sm muted">
-            กำลังแสดงเฉพาะวันที่ {formatDate(date)}
-          </p>
-        )}
-
-        {pageEntries.length === 0 ? (
-          <p className="muted px-6 py-6 text-sm">
-            {date ? "วันที่เลือกยังไม่มีรายการเดินเงิน" : "เดือนนี้ยังไม่มีรายการเดินเงิน"}
-          </p>
+      <Card label="รายการรายวัน" className="card-pad">
+        <h2 className="m-0 text-[17px] font-semibold">รายการรายวัน</h2>
+        {report.days.length === 0 ? (
+          <p className="muted py-6 text-center text-sm">เดือนนี้ยังไม่มีประวัติการลงเวลา</p>
         ) : (
-          <ul className="m-0 list-none p-0 px-6">
-            {pageEntries.map((entry) => {
-              const isIn = entry.direction === "IN";
+          <ul className="m-0 mt-4 flex list-none flex-col gap-3 p-0">
+            {report.days.map((day) => {
+              const date = new Date(`${day.dateISO}T00:00:00Z`);
+              const complete = day.summary.complete;
+              const spent = formatSpent(day.summary.totalSpent);
+              const isGain = complete && spent.isGain;
+              const spentText = spent.text;
               return (
                 <li
-                  key={entry.id}
-                  className="flex items-center gap-3.5 border-b border-[#edf1f7] py-4 last:border-b-0"
+                  key={day.dateISO}
+                  className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#e3e9f2] bg-white p-4"
                 >
                   <span
                     aria-hidden="true"
-                    className="flex h-11 w-11 flex-none items-center justify-center rounded-full"
-                    style={{ background: isIn ? "#dcfce7" : "#ffe4e6" }}
+                    className="flex h-[62px] w-[56px] flex-none flex-col items-center justify-center rounded-2xl bg-[#eaf1ff]"
                   >
-                    {isIn ? (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14532d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#881337" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
-                    )}
+                    <span className="text-[22px] font-bold leading-none text-[#0f1f3a]">
+                      {dayNum.format(date)}
+                    </span>
+                    <span className="muted mt-1 text-xs">{monthShort.format(date)}</span>
                   </span>
-                  <span className="min-w-0 flex-1">
+                  <span className="min-w-[92px] flex-1">
                     <span className="block text-[15px] font-semibold">
-                      {isIn ? "เงินเข้า" : "เงินออก"}
+                      {weekdayShort.format(date)}
                     </span>
-                    <span className="muted mt-0.5 block text-[13px]">
-                      {formatDate(entry.attendance.workDate)} • {MONEY_LABEL[entry.moneyType] ?? entry.moneyType}
-                    </span>
+                    {!complete ? (
+                      <span className="mt-1 inline-block rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-xs font-semibold text-[#92400e]">
+                        ข้อมูลไม่ครบ
+                      </span>
+                    ) : isGain ? (
+                      <span className="mt-1 inline-block rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-xs font-semibold text-[#15803d]">
+                        {spentText}
+                      </span>
+                    ) : null}
                   </span>
-                  <span
-                    className="flex-none text-lg font-bold tabular-nums"
-                    style={{ color: isIn ? "#16a34a" : "#dc2626" }}
-                  >
-                    {isIn ? "+" : "-"}฿{String(entry.amount)}
+                  <span className="flex flex-none items-start gap-5 text-right sm:gap-7">
+                    <span>
+                      <span className="muted block text-xs">เอาเข้า</span>
+                      <span className="mt-0.5 block text-[15px] font-bold tabular-nums">
+                        ฿{day.inTotal}
+                      </span>
+                    </span>
+                    <span>
+                      <span className="muted block text-xs">คงเหลือ</span>
+                      <span className="mt-0.5 block text-[15px] font-bold tabular-nums">
+                        {day.hasOut ? `฿${day.outTotal}` : "ไม่ได้กรอก"}
+                      </span>
+                    </span>
+                    <span>
+                      <span className="muted block text-xs">ใช้ไป</span>
+                      <span
+                        className="mt-0.5 block text-[15px] font-bold tabular-nums"
+                        style={{
+                          color: !complete
+                            ? "#5b6b82"
+                            : isGain
+                              ? "#16a34a"
+                              : "#1750b8",
+                        }}
+                      >
+                        {complete && !isGain ? spentText : "–"}
+                      </span>
+                    </span>
                   </span>
                 </li>
               );
             })}
           </ul>
         )}
-
-        <Pager
-          pathname="/student/money"
-          params={pagerParams}
-          page={safePage}
-          totalPages={totalPages}
-          numbered
-          summary={`ทั้งหมด ${filtered.length} รายการ`}
-        />
       </Card>
     </div>
   );

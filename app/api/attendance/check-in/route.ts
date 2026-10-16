@@ -11,6 +11,7 @@ import {
 import { attendanceFieldsSchema } from "@/validators/api";
 
 import { checkIn } from "@/services/attendance.service";
+import { summarizeDailyMoney } from "@/services/money-tracker.logic";
 
 export async function POST(request: Request) {
   try {
@@ -41,7 +42,10 @@ export async function POST(request: Request) {
       ...input,
     });
 
-    return json({ attendance }, 201);
+    return json(
+      { attendance, moneySummary: summarizeDailyMoney(attendance.money) },
+      201,
+    );
   } catch (error) {
     return handleError(error);
   }

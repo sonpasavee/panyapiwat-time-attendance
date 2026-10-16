@@ -5,6 +5,7 @@ import {
   bangkokDateKey,
   formatDate,
   formatMinutes,
+  formatSpent,
   formatThaiHeader,
   formatTime,
   last7Weekdays,
@@ -18,6 +19,7 @@ import {
 } from "@/services/attendance.service";
 import { getMyMonthlySummary } from "@/services/monthly-report.service";
 import { getMyMoneyReport } from "@/services/money-tracker.service";
+import { summarizeDailyMoney } from "@/services/money-tracker.logic";
 import { listMyLeaves } from "@/services/leave.service";
 
 import AttendanceForm from "../components/attendance-form";
@@ -238,6 +240,7 @@ export default async function StudentDashboardPage() {
                       <th scope="col">เช็กอิน</th>
                       <th scope="col">เช็กเอาท์</th>
                       <th scope="col">เวลาทำงาน</th>
+                      <th scope="col">เงินใช้ไป</th>
                       <th scope="col">สถานะ</th>
                     </tr>
                   </thead>
@@ -248,6 +251,18 @@ export default async function StudentDashboardPage() {
                         <td>{formatTime(item.checkInAt)}</td>
                         <td>{formatTime(item.checkOutAt)}</td>
                         <td className="font-semibold">{formatMinutes(item.workMinutes)}</td>
+                        <td className="font-semibold tabular-nums">
+                          {(() => {
+                            const spent = summarizeDailyMoney(item.money);
+                            if (!spent.complete) return "–";
+                            const shown = formatSpent(spent.totalSpent);
+                            return (
+                              <span style={shown.isGain ? { color: "#16a34a" } : undefined}>
+                                {shown.text}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td>
                           {item.checkOutAt ? (
                             <AttendanceBadge checkedOut />
