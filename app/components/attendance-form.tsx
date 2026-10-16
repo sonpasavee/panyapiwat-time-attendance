@@ -7,14 +7,8 @@ type AttendanceFormProps = {
   action: "check-in" | "check-out";
 };
 
-const MONEY_TYPES = [
-  { value: "CASH", label: "เงินสด" },
-  { value: "TRUEMONEY", label: "TrueMoney" },
-] as const;
-
 export default function AttendanceForm({ action }: AttendanceFormProps) {
   const router = useRouter();
-  const [moneyType, setMoneyType] = useState<"CASH" | "TRUEMONEY">("TRUEMONEY");
   const [photoName, setPhotoName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [error, setError] = useState("");
@@ -25,11 +19,18 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    const formData = new FormData(event.currentTarget);
+    const cash = String(formData.get("cashAmount") ?? "").trim();
+    const truemoney = String(formData.get("truemoneyAmount") ?? "").trim();
+    if (!cash && !truemoney) {
+      setError("กรุณากรอกเงินสดหรือ TrueMoney อย่างน้อยหนึ่งช่อง");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const formData = new FormData(event.currentTarget);
-      formData.set("moneyType", moneyType);
       const response = await fetch(`/api/attendance/${action}`, {
         method: "POST",
         body: formData,
@@ -96,19 +97,18 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
 
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor={`${action}-moneyAmount`} className="field-label">
-              {isCheckIn ? "เงินที่นำเข้า (บาท)" : "เงินที่นำออก (บาท)"}
+            <label htmlFor={`${action}-cashAmount`} className="field-label">
+              {isCheckIn ? "เงินสดที่นำเข้า (บาท)" : "เงินสดคงเหลือ (บาท)"}
             </label>
             <div className="flex h-[52px] items-center gap-2 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
               <span aria-hidden="true" className="text-lg font-semibold muted">
                 ฿
               </span>
               <input
-                id={`${action}-moneyAmount`}
-                name="moneyAmount"
+                id={`${action}-cashAmount`}
+                name="cashAmount"
                 type="text"
                 inputMode="decimal"
-                required
                 maxLength={12}
                 placeholder="0.00"
                 className="w-full min-w-0 border-none bg-transparent text-lg font-semibold outline-none"
@@ -117,32 +117,22 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span id={`${action}-moneyType-label`} className="field-label">
-              ประเภทเงิน
-            </span>
-            <div
-              role="group"
-              aria-labelledby={`${action}-moneyType-label`}
-              className="grid grid-cols-2 gap-1 rounded-xl bg-[#e9eef6] p-1"
-            >
-              {MONEY_TYPES.map((t) => {
-                const pressed = moneyType === t.value;
-                return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    aria-pressed={pressed}
-                    onClick={() => setMoneyType(t.value)}
-                    className={`min-h-[44px] rounded-[9px] border-none text-[15px] ${
-                      pressed
-                        ? "bg-white font-semibold text-[#1750b8] shadow-[0_1px_3px_rgba(15,31,58,0.15)]"
-                        : "bg-transparent font-medium text-[#33425b]"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
+            <label htmlFor={`${action}-truemoneyAmount`} className="field-label">
+              {isCheckIn ? "TrueMoney ที่นำเข้า (บาท)" : "TrueMoney คงเหลือ (บาท)"}
+            </label>
+            <div className="flex h-[52px] items-center gap-2 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
+              <span aria-hidden="true" className="text-lg font-semibold muted">
+                ฿
+              </span>
+              <input
+                id={`${action}-truemoneyAmount`}
+                name="truemoneyAmount"
+                type="text"
+                inputMode="decimal"
+                maxLength={12}
+                placeholder="0.00"
+                className="w-full min-w-0 border-none bg-transparent text-lg font-semibold outline-none"
+              />
             </div>
           </div>
         </div>

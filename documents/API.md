@@ -10,7 +10,7 @@ Pagination: `page` defaults to 1; `pageSize` defaults to 20 and is capped at 100
 | `POST /api/auth/login` | Public | JSON `{ "username": "student id", "password": "â€¦" }`; students sign in with student ID, and ADMIN may also use employeeCode. |
 | `POST /api/admin/users/import` | ADMIN | Same-origin JSON `{ "rows": [...] }`, max 500 rows / 1 MB. Each row requires `line,studentId,firstName,lastName,employeeCode`; `shopCode,gradeLevel` are optional. `employeeCode` is the initial password and is stored only as an Argon2id hash. Duplicate identifiers within the file or database reject the entire import. Success: `{ "importedCount": n }`. |
 | `POST /api/auth/logout` | Authenticated | Clear session cookie. |
-| `POST /api/attendance/check-in` | STUDENT | Multipart fields: `image`, `moneyAmount` (nonnegative decimal, 2 places), `moneyType` (`CASH`/`TRUEMONEY`), optional `note`. |
+| `POST /api/attendance/check-in` | STUDENT | Multipart fields: `image`, `cashAmount` / `truemoneyAmount` (nonnegative decimal, 2 places, optional — at least one required), optional `note`. |
 | `POST /api/attendance/check-out` | STUDENT | Same multipart fields; requires today's check-in. |
 | `GET /api/attendance/me` | STUDENT | Own attendance, paginated; optional month/year. |
 | `GET /api/attendance/me/today` | STUDENT | Today's check-in/out state and money entries. |

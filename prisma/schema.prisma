@@ -123,12 +123,12 @@ model MoneyEntry {
   attendanceId String
   direction    MoneyDirection
   amount       Decimal        @db.Decimal(10, 2)
-  moneyType    MoneyType      // TrueMoney / เงินสด เลือกทุกครั้ง
+  moneyType    MoneyType      // แยกแถวตามประเภท: บันทึกได้ทั้งเงินสดและ TrueMoney
   createdAt    DateTime       @default(now())
 
   attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
 
-  @@unique([attendanceId, direction]) // 1 รายการต่อ direction ต่อวัน
+  @@unique([attendanceId, direction, moneyType]) // 1 แถวต่อประเภทต่อทิศทางต่อวัน
 }
 
 // ประวัติการลา/วันหยุด (ไม่ต้องอนุมัติ)

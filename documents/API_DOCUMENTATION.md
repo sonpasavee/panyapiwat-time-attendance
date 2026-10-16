@@ -97,16 +97,18 @@ Base URL (local): `http://localhost:3000` (ตอนตรวจใช้ `:3100
 | field | กติกา |
 |---|---|
 | image | **บังคับ** — jpeg/png/webp, ≤5MB, ตรวจ magic bytes ด้วย (JPEG `FF D8 FF`, PNG signature, `RIFF....WEBP`) |
-| moneyAmount | **บังคับ** — string ทศนิยม `/^\d{1,8}(\.\d{1,2})?$/` และ ≤ 99,999,999.99 (ห้ามติดลบ) |
-| moneyType | **บังคับ** — `CASH` หรือ `TRUEMONEY` |
+| cashAmount | optional — เงินสด, string ทศนิยม `/^\d{1,8}(\.\d{1,2})?$/` และ ≤ 99,999,999.99 (ห้ามติดลบ) |
+| truemoneyAmount | optional — TrueMoney, กติกาเดียวกับ cashAmount |
 | note | optional — ≤1000 ตัวอักษร (ส่ง `""` ถือว่าไม่ส่ง) |
 
+- ต้องส่ง `cashAmount` หรือ `truemoneyAmount` อย่างน้อยหนึ่งช่อง (เว้นว่าง = ไม่บันทึกแถวประเภทนั้น)
+
 - **สำเร็จ `201`:** `{ attendance: {..., workDate, checkInAt, checkInPhotoUrl (Cloudinary), checkInNote, ...} }`
-- **ยิงจริง:** `201` รูปขึ้น Cloudinary จริง / เช็กเข้าวันเดิมซ้ำ → `409` / `moneyAmount: "-5"` → `400`
-- **Note:** กันเช็กเข้าซ้ำด้วย unique `(userId, workDate)`; สร้าง `MoneyEntry(direction=IN)` 1 รายการผูกกับ attendance
+- **ยิงจริง:** `201` รูปขึ้น Cloudinary จริง / เช็กเข้าวันเดิมซ้ำ → `409` / `cashAmount: "-5"` → `400`
+- **Note:** กันเช็กเข้าซ้ำด้วย unique `(userId, workDate)`; สร้าง `MoneyEntry(direction=IN)` แยกตามประเภทที่กรอก (สูงสุด 2 รายการ) ผูกกับ attendance
 
 ### `POST /api/attendance/check-out` — เช็กออก
-- รับ multipart เหมือน check-in ทุกประการ (ต่างแค่สร้าง `MoneyEntry(direction=OUT)`)
+- รับ multipart เหมือน check-in ทุกประการ (ต่างแค่สร้าง `MoneyEntry(direction=OUT)` แยกตามประเภทที่กรอก)
 - **สำเร็จ `200`:** `{ attendance: {..., checkOutAt, checkOutPhotoUrl, workMinutes} }`
 - **ยิงจริง:** `200` / เช็กออกซ้ำ → `409 ALREADY_CHECKED_OUT` / เช็กออกโดยยังไม่เช็กเข้า (อีก user ที่ทดสอบ) → `409 CHECK_IN_REQUIRED`
 - **Note:** `workMinutes = checkOutAt - checkInAt` (ปัดเป็นนาที); เวลา checkout ต้องหลัง check-in ไม่งั้น `INVALID_TIME_ORDER`

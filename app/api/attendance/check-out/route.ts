@@ -31,8 +31,8 @@ export async function POST(request: Request) {
     }
 
     const input = attendanceFieldsSchema.parse({
-      moneyAmount: form.get("moneyAmount"),
-      moneyType: form.get("moneyType"),
+      cashAmount: form.get("cashAmount") || undefined,
+      truemoneyAmount: form.get("truemoneyAmount") || undefined,
       note: form.get("note") || undefined,
     });
 

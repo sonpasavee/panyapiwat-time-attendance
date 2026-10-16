@@ -82,16 +82,29 @@ export const moneyAmountSchema = z
 // 4. Attendance Fields Schema
 // ============================================
 
-export const attendanceFieldsSchema = z.object({
-  moneyAmount: moneyAmountSchema,
-  moneyType: z.enum(["CASH", "TRUEMONEY"]),
+export const attendanceFieldsSchema = z
+  .object({
+    // เงินสด / TrueMoney แยกกัน — เว้นว่างได้ แต่ต้องกรอกอย่างน้อยหนึ่งช่อง
+    // ช่องที่เว้นว่าง = ไม่บันทึกแถวนั้น (สูตรรายวันถือเป็น 0)
+    cashAmount: moneyAmountSchema.optional(),
+    truemoneyAmount: moneyAmountSchema.optional(),
 
-  note: z
-    .string()
-    .trim()
-    .max(1000)
-    .optional(),
-});
+    note: z
+      .string()
+      .trim()
+      .max(1000)
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (!value.cashAmount && !value.truemoneyAmount) {
+      context.addIssue({
+        code: "custom",
+        path: ["cashAmount"],
+        message: "กรุณากรอกเงินสดหรือ TrueMoney อย่างน้อยหนึ่งช่อง",
+      });
+    }
+  });
 
 // ============================================
 // 5. ID Schema

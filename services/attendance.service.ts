@@ -8,6 +8,32 @@ import { checkOutRuleError } from "@/services/attendance.logic";
 
 type MoneyType = "CASH" | "TRUEMONEY";
 
+type MoneyInput = {
+  cashAmount?: string;
+  truemoneyAmount?: string;
+};
+
+function moneyRows(direction: "IN" | "OUT", input: MoneyInput) {
+  const rows = [
+    ...(input.cashAmount
+      ? [{ direction, amount: input.cashAmount, moneyType: "CASH" as MoneyType }]
+      : []),
+    ...(input.truemoneyAmount
+      ? [{ direction, amount: input.truemoneyAmount, moneyType: "TRUEMONEY" as MoneyType }]
+      : []),
+  ];
+
+  if (rows.length === 0) {
+    throw new ApiError(
+      400,
+      "กรุณากรอกเงินสดหรือ TrueMoney อย่างน้อยหนึ่งช่อง",
+      "VALIDATION_ERROR",
+    );
+  }
+
+  return rows;
+}
+
 // ========================================
 // Check In
 // ========================================
@@ -17,8 +43,8 @@ export async function checkIn(
   input: {
     image: File;
     note?: string;
-    moneyAmount: string;
-    moneyType: MoneyType;
+    cashAmount?: string;
+    truemoneyAmount?: string;
   },
 ) {
   let image:
@@ -47,11 +73,7 @@ export async function checkIn(
           checkInNote: input.note,
 
           money: {
-            create: {
-              direction: "IN",
-              amount: input.moneyAmount,
-              moneyType: input.moneyType,
-            },
+            create: moneyRows("IN", input),
           },
         },
         include: {
@@ -77,8 +99,8 @@ export async function checkOut(
   input: {
     image: File;
     note?: string;
-    moneyAmount: string;
-    moneyType: MoneyType;
+    cashAmount?: string;
+    truemoneyAmount?: string;
   },
 ) {
   let image:
@@ -158,13 +180,11 @@ export async function checkOut(
         );
       }
 
-      await tx.moneyEntry.create({
-        data: {
+      await tx.moneyEntry.createMany({
+        data: moneyRows("OUT", input).map((row) => ({
           attendanceId: existing.id,
-          direction: "OUT",
-          amount: input.moneyAmount,
-          moneyType: input.moneyType,
-        },
+          ...row,
+        })),
       });
 
       return tx.attendance.findUniqueOrThrow({
