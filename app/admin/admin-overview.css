@@ -1,0 +1,312 @@
+/* หน้า /admin — สไตล์ตาม mock (ไม่แตะ globals.css) */
+
+.ov-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ov-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.ov-head p {
+  margin: 2px 0 0;
+  font-size: 15px;
+  color: #5b6b82;
+}
+
+.ov-head-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ov-shopselect {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid #d5deeb;
+  background: #fff;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #33425b;
+}
+
+.ov-datelink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #d5deeb;
+  background: #fff;
+  color: #33425b;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* การ์ดเปอร์เซ็นต์ */
+.ov-rate-value {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
+.ov-rate-sub {
+  margin: 0;
+  font-size: 14px;
+  color: #5b6b82;
+}
+
+.ov-bar {
+  display: flex;
+  height: 12px;
+  margin-top: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8edf5;
+}
+
+.ov-legend {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.ov-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #5b6b82;
+}
+
+.ov-legend-item strong {
+  display: block;
+  font-size: 22px;
+  color: #0f1f3a;
+  tabular-nums: true;
+}
+
+.ov-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* ต้องติดตาม */
+.ov-todo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.ov-todo strong {
+  display: block;
+  font-size: 22px;
+  line-height: 1.2;
+  tabular-nums: true;
+}
+
+.ov-todo span {
+  display: block;
+  font-size: 13px;
+}
+
+.ov-todo a {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* pills ตาราง */
+.ov-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ov-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #d5deeb;
+  background: #fff;
+  color: #33425b;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  tabular-nums: true;
+}
+
+.ov-pill[aria-current="page"] {
+  border-color: #1d63d8;
+  background: #1d63d8;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ตาราง */
+.ov-table-scroll {
+  overflow-x: auto;
+}
+
+.ov-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ov-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ov-avatar[data-tone="blue"] { background: #dbeafe; color: #1e3a8a; }
+.ov-avatar[data-tone="green"] { background: #dcfce7; color: #14532d; }
+.ov-avatar[data-tone="yellow"] { background: #fef3c7; color: #78350f; }
+.ov-avatar[data-tone="pink"] { background: #ffe4e6; color: #881337; }
+.ov-avatar[data-tone="lavender"] { background: #e6e6fa; color: #3b3480; }
+
+.ov-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px 16px;
+  font-size: 13px;
+  color: #5b6b82;
+}
+
+.ov-foot a {
+  color: #1750b8;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* แถบบาร์รายร้าน */
+.ov-shopbar {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.ov-shopbar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8edf5;
+  overflow: hidden;
+}
+
+.ov-shopbar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #1d63d8;
+}
+
+/* รายการลา */
+.ov-leave-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #edf1f7;
+  font-size: 14px;
+}
+
+.ov-leave-row:last-child {
+  border-bottom: 0;
+}
+
+.ov-leave-name {
+  display: block;
+  font-weight: 600;
+}
+
+.ov-leave-shop {
+  display: block;
+  font-size: 12px;
+  color: #5b6b82;
+}
+
+.ov-type {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ov-type[data-type="SICK"] { background: #ffe4e6; color: #881337; }
+.ov-type[data-type="PERSONAL"] { background: #fef3c7; color: #78350f; }
+.ov-type[data-type="HOLIDAY"] { background: #e2e8f0; color: #334155; }
+
+/* การเงิน */
+.ov-money-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  text-align: left;
+}
+
+.ov-money-grid span {
+  display: block;
+  font-size: 12px;
+  color: #5b6b82;
+}
+
+.ov-money-grid strong {
+  display: block;
+  font-size: 19px;
+  tabular-nums: true;
+}
+
+.ov-money-bar {
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: #e8edf5;
+  overflow: hidden;
+}
+
+.ov-money-bar > span {
+  display: block;
+  height: 100%;
+  background: #1d63d8;
+  border-radius: 999px;
+}

@@ -1,0 +1,372 @@
+/* หน้า /student/leaves — สไตล์ตาม mock (ไม่แตะ globals.css) */
+
+.leaves-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 16px;
+  background: #e9eff9;
+}
+
+.leaves-tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #5b6b82;
+  text-decoration: none;
+}
+
+.leaves-tabs a[aria-current="page"] {
+  background: #fff;
+  color: #0f1f3a;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(15, 31, 58, 0.15);
+}
+
+/* แบนเนอร์สำเร็จ */
+.leaves-success {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+}
+
+.leaves-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 14px;
+  background: #16a34a;
+  color: #fff;
+}
+
+.leaves-success-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.leaves-success-sub {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #3f6212;
+}
+
+/* ปฏิทิน */
+.leaves-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.leaves-cal-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: #eef3fa;
+  color: #33425b;
+  cursor: pointer;
+}
+
+.leaves-cal-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.leaves-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.leaves-cal-dow {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: #5b6b82;
+}
+
+.leaves-cal-dow[data-weekend="true"] {
+  color: #dc2626;
+}
+
+.leaves-cal-day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f7fb;
+  color: #0f1f3a;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.leaves-cal-day[data-selected="true"] {
+  background: #1d63d8;
+  color: #fff;
+  font-weight: 700;
+}
+
+.leaves-cal-day[data-today="true"]:not([data-selected="true"]) {
+  background: #fff8e6;
+  border: 2px dashed #eab308;
+}
+
+.leaves-cal-day:disabled {
+  background: #eef3fa;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.leaves-cal-legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: #5b6b82;
+}
+
+.leaves-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  border-radius: 999px;
+  vertical-align: baseline;
+}
+
+/* ชิปวันที่เลือก */
+.leaves-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 6px 4px 14px;
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: #0f1f3a;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.leaves-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: #d5e3fa;
+  color: #33425b;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.leaves-count-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: #1750b8;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* การ์ดประเภทการลา */
+.leaves-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.leaves-type-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid #e3e9f2;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.leaves-type-card[aria-pressed="true"] {
+  border-color: #1d63d8;
+  background: #f4f8ff;
+}
+
+.leaves-type-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 999px;
+}
+
+.leaves-type-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f1f3a;
+}
+
+.leaves-type-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #5b6b82;
+}
+
+/* ชิปเหตุผล */
+.leaves-reason-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.leaves-reason-chip {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid #d5deeb;
+  background: #fff;
+  color: #33425b;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.leaves-reason-chip[aria-pressed="true"] {
+  border-color: #1d63d8;
+  background: #eaf1ff;
+  color: #1750b8;
+  font-weight: 600;
+}
+
+/* ปุ่มอันตรายแบบเส้น */
+.leaves-btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid #f3b8c0;
+  background: #fff;
+  color: #c22636;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.leaves-btn-danger-outline:hover {
+  background: #fef2f2;
+}
+
+.leaves-alert {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+/* แถวรายการวันหยุด */
+.leaves-holiday-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid #e3e9f2;
+  background: #fff;
+}
+
+.leaves-holiday-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 14px;
+  background: #eaf1ff;
+  color: #1d63d8;
+}
+
+/* แถวประวัติการลา */
+.leaves-history-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 4px;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.leaves-history-row:last-child {
+  border-bottom: 0;
+}
+
+.leaves-history-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 999px;
+}
+
+.leaves-day-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+@media (max-width: 640px) {
+  .leaves-type-grid {
+    grid-template-columns: 1fr;
+  }
+}

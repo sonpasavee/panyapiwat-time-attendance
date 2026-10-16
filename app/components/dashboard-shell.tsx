@@ -72,6 +72,7 @@ export const adminNavItems: NavItem[] = [
   { href: "/admin/attendance", label: "การลงเวลา", icon: <ClockIcon /> },
   { href: "/admin/reports", label: "รายงาน", icon: <ChartIcon /> },
   { href: "/admin/users", label: "นักศึกษา", icon: <UsersIcon /> },
+  { href: "/admin/finance", label: "การเงิน", icon: <WalletIcon /> },
   { href: "/admin/leaves", label: "การลา", icon: <CalendarIcon /> },
   { href: "/admin/import", label: "นำเข้ารายชื่อ", icon: <UploadIcon /> },
 ];

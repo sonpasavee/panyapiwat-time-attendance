@@ -1,5 +1,5 @@
 import { requireAdminPage } from "@/lib/page-auth";
-import { formatDate, formatTime } from "@/lib/format";
+import { bangkokDateKey } from "@/lib/format";
 import {
   adminAttendanceQuerySchema,
   monthYear,
@@ -10,9 +10,11 @@ import {
   buildAdminAttendanceFilter,
   listAdminAttendance,
 } from "@/services/attendance.service";
+import { listShopCodes } from "@/services/user.service";
 
 import Pager from "../../components/pager";
-import { Badge, Card } from "../../components/ui";
+import AttendanceManager, { type AttendanceRow } from "./attendance-manager";
+import "./admin-attendance.css";
 
 export const instant = false;
 
@@ -37,6 +39,34 @@ function str(value: string | string[] | undefined) {
   return v ? v : undefined;
 }
 
+type StatusFilter = "" | "complete" | "working" | "missed";
+
+const monthLongFmt = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  month: "long",
+  year: "numeric",
+});
+
+const dayNum = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  day: "numeric",
+});
+const monthShort = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  month: "short",
+});
+const timeFmt = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const STATUS_LABEL: Record<Exclude<StatusFilter, "">, string> = {
+  complete: "ครบ",
+  working: "กำลังทำงาน",
+  missed: "ไม่ได้เช็กเอาท์",
+};
+
 export default async function AdminAttendancePage({
   searchParams,
 }: {
@@ -46,7 +76,7 @@ export default async function AdminAttendancePage({
   const params = await searchParams;
 
   const raw: Record<string, string> = {};
-  for (const key of ["q", "shopCode", "date", "status", "sort"] as const) {
+  for (const key of ["q", "shopCode", "date", "sort"] as const) {
     const v = str(params[key]);
     if (v) raw[key] = v;
   }
@@ -61,127 +91,130 @@ export default async function AdminAttendancePage({
     ...(first(params.page) ? { page: first(params.page)! } : {}),
     ...(first(params.pageSize) ? { pageSize: first(params.pageSize)! } : {}),
   });
-  const { page, pageSize, skip } = pagination(query);
+  const { page, pageSize } = pagination(query);
+
+  const statusRaw = str(params.status);
+  const status: StatusFilter =
+    statusRaw === "complete" || statusRaw === "working" || statusRaw === "missed"
+      ? statusRaw
+      : "";
+
+  const today = bangkokDateKey();
 
   const where = buildAdminAttendanceFilter({
     date: filters.date,
     monthRange: filters.date ? undefined : monthRange(year, month),
     shopCode: filters.shopCode,
-    status: filters.status,
     query: filters.q,
   });
 
-  const { items, total } = await listAdminAttendance(
-    where,
-    skip,
-    pageSize,
-    filters.sort ?? "desc",
-  );
-  const totalPages = Math.ceil(total / pageSize);
+  // ดึงทั้งเดือน (ไม่แตะ service เดิม) แล้วกรองสถานะ + แบ่งหน้าในเพจ
+  const [{ items }, shopCodes] = await Promise.all([
+    listAdminAttendance(where, 0, 2000, filters.sort ?? "desc"),
+    listShopCodes(),
+  ]);
 
-  const preserved: Record<string, string> = {
-    ...raw,
+  const withStatus = items.map((item) => ({
+    item,
+    st: (item.checkOutAt
+      ? "complete"
+      : item.workDate.toISOString().slice(0, 10) === today
+        ? "working"
+        : "missed") as Exclude<StatusFilter, "">,
+  }));
+
+  const stats = {
+    total: withStatus.length,
+    complete: withStatus.filter((r) => r.st === "complete").length,
+    working: withStatus.filter((r) => r.st === "working").length,
+    missed: withStatus.filter((r) => r.st === "missed").length,
+  };
+
+  const filtered = status === "" ? withStatus : withStatus.filter((r) => r.st === status);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const rows: AttendanceRow[] = pageItems.map(({ item }) => ({
+    id: item.id,
+    workDateISO: item.workDate.toISOString().slice(0, 10),
+    checkInAt: item.checkInAt.toISOString(),
+    checkOutAt: item.checkOutAt?.toISOString() ?? null,
+    workMinutes: item.workMinutes,
+    checkInPhotoUrl: item.checkInPhotoUrl,
+    checkOutPhotoUrl: item.checkOutPhotoUrl,
+    user: {
+      id: item.user.id,
+      firstName: item.user.firstName,
+      lastName: item.user.lastName,
+      studentId: item.user.studentId,
+      shopCode: item.user.shopCode,
+    },
+  }));
+
+  const csvRows = pageItems.map(({ item, st }) => {
+    const d = item.workDate;
+    const date = `${dayNum.format(d)} ${monthShort.format(d)}`;
+    const time = (v: Date | null) => (v ? timeFmt.format(v) : "–");
+    const h =
+      item.workMinutes != null
+        ? `${Math.floor(item.workMinutes / 60)} ชม. ${item.workMinutes % 60} น.`
+        : "–";
+    return [
+      `${item.user.firstName} ${item.user.lastName}`,
+      item.user.studentId ?? "–",
+      item.user.shopCode ?? "–",
+      date,
+      time(item.checkInAt),
+      time(item.checkOutAt),
+      h,
+      STATUS_LABEL[st],
+    ];
+  });
+
+  const linkBase: Record<string, string> = {
     month: String(month),
     year: String(year),
+    ...(filters.q ? { q: filters.q } : {}),
+    ...(filters.shopCode ? { shopCode: filters.shopCode } : {}),
+    ...(filters.date ? { date: filters.date } : {}),
+    ...(filters.sort ? { sort: filters.sort } : {}),
+  };
+
+  const preserved: Record<string, string> = {
+    ...linkBase,
+    ...(status ? { status } : {}),
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="m-0 text-[28px] font-bold leading-snug">การลงเวลา</h1>
-        <p className="mt-0.5 text-[15px] muted">
-          รายการลงเวลาทั้งหมด{filters.date ? ` วันที่ ${formatDate(new Date(`${filters.date}T00:00:00.000Z`))}` : ` เดือน ${month}/${year}`} ({total} รายการ)
-        </p>
-      </header>
-
-      <Card label="ตัวกรอง" className="card-pad">
-        <form method="get" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="att-q" className="field-label">ค้นหาชื่อ / รหัส</label>
-            <input id="att-q" name="q" type="search" defaultValue={filters.q ?? ""} placeholder="ชื่อ / รหัสนักศึกษา…" maxLength={100} className="input min-h-[44px]" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="att-shop" className="field-label">รหัสร้าน</label>
-            <input id="att-shop" name="shopCode" type="text" defaultValue={filters.shopCode ?? ""} placeholder="เช่น TEST01" maxLength={40} className="input min-h-[44px]" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="att-date" className="field-label">วันที่ (เจาะจง)</label>
-            <input id="att-date" name="date" type="date" defaultValue={filters.date ?? ""} className="input min-h-[44px]" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="att-status" className="field-label">สถานะ</label>
-            <select id="att-status" name="status" defaultValue={filters.status ?? ""} className="input min-h-[44px]">
-              <option value="">ทั้งหมด</option>
-              <option value="checked-in">เช็กอินแล้ว (ยังไม่เอาท์)</option>
-              <option value="checked-out">เช็กเอาท์แล้ว</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="att-month" className="field-label">เดือน</label>
-            <input id="att-month" name="month" type="number" min={1} max={12} defaultValue={month} className="input min-h-[44px]" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="att-year" className="field-label">ปี</label>
-            <input id="att-year" name="year" type="number" min={2000} max={2200} defaultValue={year} className="input min-h-[44px]" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="att-sort" className="field-label">เรียง</label>
-            <select id="att-sort" name="sort" defaultValue={filters.sort ?? "desc"} className="input min-h-[44px]">
-              <option value="desc">ใหม่ → เก่า</option>
-              <option value="asc">เก่า → ใหม่</option>
-            </select>
-          </div>
-          <div className="flex items-end">
-            <button type="submit" className="btn btn-primary w-full">ค้นหา</button>
-          </div>
-        </form>
-      </Card>
-
-      <Card label="รายการลงเวลา" className="overflow-hidden">
-        {items.length === 0 ? (
-          <p className="muted px-6 py-6 text-sm">ไม่พบข้อมูลตามเงื่อนไข</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="tbl">
-              <caption className="sr-only">รายการลงเวลา</caption>
-              <thead>
-                <tr>
-                  <th scope="col">ชื่อ</th>
-                  <th scope="col">รหัส</th>
-                  <th scope="col">ร้าน</th>
-                  <th scope="col">วันที่</th>
-                  <th scope="col">เช็กอิน</th>
-                  <th scope="col">เช็กเอาท์</th>
-                  <th scope="col">สถานะ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="font-semibold">{item.user.firstName} {item.user.lastName}</td>
-                    <td>{item.user.studentId ?? item.user.employeeCode ?? "–"}</td>
-                    <td>{item.user.shopCode ?? "–"}</td>
-                    <td>{formatDate(item.workDate)}</td>
-                    <td>{formatTime(item.checkInAt)}</td>
-                    <td>{formatTime(item.checkOutAt)}</td>
-                    <td>
-                      {item.checkOutAt ? <Badge tone="green">ครบ</Badge> : <Badge tone="blue">กำลังทำงาน</Badge>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+    <AttendanceManager
+      rows={rows}
+      todayISO={today}
+      month={month}
+      year={year}
+      monthLabel={monthLongFmt.format(new Date(Date.UTC(year, month - 1, 1)))}
+      linkBase={linkBase}
+      filters={{
+        q: filters.q ?? "",
+        shopCode: filters.shopCode ?? "",
+        date: filters.date ?? "",
+        sort: filters.sort ?? "desc",
+      }}
+      shopCodes={shopCodes}
+      stats={stats}
+      status={status}
+      csvRows={csvRows}
+      csvFilename={`การลงเวลา_${year}-${String(month).padStart(2, "0")}.csv`}
+      pager={
         <Pager
           pathname="/admin/attendance"
           params={preserved}
-          page={page}
+          page={safePage}
           totalPages={totalPages}
           numbered
-          summary={`ทั้งหมด ${total} รายการ`}
+          summary={`ทั้งหมด ${filtered.length} รายการ`}
         />
-      </Card>
-    </div>
+      }
+    />
   );
 }

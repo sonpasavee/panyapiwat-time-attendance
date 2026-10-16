@@ -1,26 +1,37 @@
 import Link from "next/link";
 
 import { requireAdminPage } from "@/lib/page-auth";
-import { bangkokDateKey, formatThaiHeader, formatTime } from "@/lib/format";
-import { pagination } from "@/validators/api";
+import {
+  bangkokDateKey,
+  formatThaiHeader,
+  formatTime,
+} from "@/lib/format";
+import { monthYear } from "@/validators/api";
+import { monthRange } from "@/lib/time";
 import { listUsers } from "@/services/user.service";
 import {
   buildAdminAttendanceFilter,
   listAdminAttendance,
 } from "@/services/attendance.service";
 import { listAdminLeaves } from "@/services/leave.service";
+import {
+  buildAdminMoneyFilter,
+  listAdminMoneyEntries,
+} from "@/services/money-tracker.service";
+import {
+  amountToCents,
+  summarizeDailyMoney,
+} from "@/services/money-tracker.logic";
 
 import ExportCsvButton from "../components/export-csv-button";
-import Pager from "../components/pager";
-import { Badge, Card, StatCard } from "../components/ui";
+import ShopSelect from "./shop-select";
+import "./admin-overview.css";
 
 export const instant = false;
 
 type SearchParams = {
   shopCode?: string | string[];
   status?: string | string[];
-  q?: string | string[];
-  page?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
@@ -29,31 +40,37 @@ function first(value: string | string[] | undefined) {
 
 type RowStatus = "done" | "working" | "leave-sick" | "leave-personal" | "leave-holiday" | "not-in";
 
-function StatusBadge({ status }: { status: RowStatus }) {
-  switch (status) {
-    case "done":
-      return <Badge tone="green">ครบ</Badge>;
-    case "working":
-      return <Badge tone="blue">กำลังทำงาน</Badge>;
-    case "leave-sick":
-      return <Badge tone="pink">ลาป่วย</Badge>;
-    case "leave-personal":
-      return <Badge tone="yellow">ลากิจ</Badge>;
-    case "leave-holiday":
-      return <Badge tone="gray">วันหยุด</Badge>;
-    default:
-      return <Badge tone="gray">ยังไม่เช็กอิน</Badge>;
-  }
+const LEAVE_PILL: Record<string, { label: string; type: "SICK" | "PERSONAL" | "HOLIDAY" }> = {
+  "leave-sick": { label: "ลาป่วย", type: "SICK" },
+  "leave-personal": { label: "ลากิจ", type: "PERSONAL" },
+  "leave-holiday": { label: "วันหยุด", type: "HOLIDAY" },
+};
+
+const TONES = ["blue", "green", "yellow", "pink", "lavender"] as const;
+
+function toneOf(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash = (hash + id.charCodeAt(i)) % 997;
+  return TONES[hash % TONES.length];
 }
 
-const STATUS_LABEL: Record<RowStatus, string> = {
-  done: "ครบ",
-  working: "กำลังทำงาน",
-  "leave-sick": "ลาป่วย",
-  "leave-personal": "ลากิจ",
-  "leave-holiday": "วันหยุด",
-  "not-in": "ยังไม่เช็กอิน",
-};
+const dayNumFmt = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  day: "numeric",
+});
+const monthShortFmt = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  month: "short",
+});
+const yearFmt = new Intl.DateTimeFormat("th-TH", {
+  timeZone: "Asia/Bangkok",
+  year: "numeric",
+});
+
+function fmtHours(minutes: number | null | undefined) {
+  if (minutes == null) return null;
+  return `${Math.floor(minutes / 60)} ชม. ${minutes % 60} น.`;
+}
 
 export default async function AdminOverviewPage({
   searchParams,
@@ -64,41 +81,48 @@ export default async function AdminOverviewPage({
   const params = await searchParams;
   const shopCode = first(params.shopCode)?.trim() || "";
   const status = first(params.status)?.trim() || "all";
-  const q = first(params.q)?.trim().toLowerCase() || "";
-  const query = new URLSearchParams({
-    ...(first(params.page) ? { page: first(params.page)! } : {}),
-  });
-  const { page } = pagination(query);
-  const pageSize = 7;
 
   const todayKey = bangkokDateKey();
   const todayDate = new Date(`${todayKey}T00:00:00.000Z`);
   const yesterday = new Date(todayDate);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const yesterdayKey = yesterday.toISOString().slice(0, 10);
+  const { month: curMonth, year: curYear } = monthYear(new URLSearchParams());
 
-  const [students, todayAtt, todayLeaves, missedOut] = await Promise.all([
-    listUsers({ role: "STUDENT", isActive: true }, 0, 500),
-    listAdminAttendance(
-      buildAdminAttendanceFilter({ date: todayKey }),
-      0,
-      500,
-      "asc",
-    ),
-    listAdminLeaves(
-      { startDate: { lte: todayDate }, endDate: { gte: todayDate } },
-      0,
-      300,
-    ),
-    listAdminAttendance(
-      buildAdminAttendanceFilter({ date: yesterdayKey, status: "checked-in" }),
-      0,
-      50,
-      "asc",
-    ),
-  ]);
+  const [students, todayAtt, todayLeaves, missedOut, monthAtt, monthMoney] =
+    await Promise.all([
+      listUsers({ role: "STUDENT", isActive: true }, 0, 500),
+      listAdminAttendance(
+        buildAdminAttendanceFilter({ date: todayKey }),
+        0,
+        1000,
+        "asc",
+      ),
+      listAdminLeaves(
+        { startDate: { lte: todayDate }, endDate: { gte: todayDate } },
+        0,
+        500,
+      ),
+      listAdminAttendance(
+        buildAdminAttendanceFilter({ date: yesterdayKey, status: "checked-in" }),
+        0,
+        100,
+        "asc",
+      ),
+      listAdminAttendance(
+        buildAdminAttendanceFilter({ monthRange: monthRange(curYear, curMonth) }),
+        0,
+        5000,
+        "asc",
+      ),
+      listAdminMoneyEntries(
+        buildAdminMoneyFilter(curMonth, curYear, {}),
+        0,
+        5000,
+      ),
+    ]);
 
-  const branches = [...new Set(students.items.map((u) => u.shopCode).filter(Boolean))].sort() as string[];
+  const shops = [...new Set(students.items.map((u) => u.shopCode).filter(Boolean))].sort() as string[];
 
   const attByUser = new Map(todayAtt.items.map((a) => [a.userId, a]));
   const leaveByUser = new Map(todayLeaves.items.map((l) => [l.userId, l]));
@@ -106,11 +130,11 @@ export default async function AdminOverviewPage({
   type Row = {
     id: string;
     name: string;
-    year: string;
     shop: string;
     checkIn: string;
     checkOut: string;
-    photoUrl: string;
+    hours: string | null;
+    working: boolean;
     status: RowStatus;
   };
 
@@ -127,14 +151,15 @@ export default async function AdminOverviewPage({
     else if (leave?.type === "SICK") s = "leave-sick";
     else if (leave?.type === "PERSONAL") s = "leave-personal";
     else if (leave) s = "leave-holiday";
+    const hours = att?.workMinutes != null ? fmtHours(att.workMinutes) : null;
     return {
       id: u.id,
       name: `${u.firstName} ${u.lastName}`,
-      year: u.gradeLevel ? `ชั้นปี ${u.gradeLevel}` : "–",
       shop: u.shopCode ?? "–",
       checkIn: att ? formatTime(att.checkInAt) : "–",
       checkOut: att?.checkOutAt ? formatTime(att.checkOutAt) : "–",
-      photoUrl: att?.checkInPhotoUrl ?? "",
+      hours,
+      working: !!att && !att.checkOutAt,
       status: s,
     };
   });
@@ -142,6 +167,8 @@ export default async function AdminOverviewPage({
   const checkedIn = allRows.filter((r) => r.status === "done" || r.status === "working").length;
   const onLeave = allRows.filter((r) => r.status.startsWith("leave")).length;
   const notIn = allRows.length - checkedIn - onLeave;
+  const pct1 = (n: number) =>
+    allRows.length === 0 ? "0.0%" : `${((n / allRows.length) * 100).toFixed(1)}%`;
 
   const matchStatus = (r: Row) => {
     if (status === "in") return r.status === "done" || r.status === "working";
@@ -149,270 +176,357 @@ export default async function AdminOverviewPage({
     if (status === "leave") return r.status.startsWith("leave");
     return true;
   };
-  const matchQ = (r: Row) =>
-    !q ||
-    r.name.toLowerCase().includes(q) ||
-    r.shop.toLowerCase().includes(q);
+  const filtered = allRows.filter(matchStatus);
+  const shown = filtered.slice(0, 7);
 
-  const filtered = allRows.filter((r) => matchStatus(r) && matchQ(r));
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const from = filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
-  const to = Math.min(safePage * pageSize, filtered.length);
+  // ข้อมูลเงินไม่ครบ = เช็กเอาท์แล้วแต่สรุปยอดรายวันไม่ได้
+  const incompleteMoney = todayAtt.items.filter(
+    (a) => a.checkOutAt && !summarizeDailyMoney(a.money).complete,
+  ).length;
 
-  const pct = (n: number) =>
-    allRows.length === 0 ? "0%" : `${((n / allRows.length) * 100).toFixed(1)}%`;
-  const donutPct = (n: number) =>
-    allRows.length === 0 ? 0 : (n / allRows.length) * 100;
-  const donut = `conic-gradient(#1d63d8 0 ${donutPct(checkedIn)}%, #94a3b8 ${donutPct(checkedIn)}% ${donutPct(checkedIn) + donutPct(notIn)}%, #f59e0b ${donutPct(checkedIn) + donutPct(notIn)}% 100%)`;
+  // อัตราเข้างานรายร้านของเดือนนี้:
+  // วันทำงานที่ distinct (คน, วัน) / (นักศึกษาในร้าน × วันจันทร์–ศุกร์ที่พ้นมาแล้วของเดือน)
+  const elapsedWeekdays = (() => {
+    const todayDay = todayDate.getUTCDate();
+    let count = 0;
+    for (let d = 1; d <= todayDay; d += 1) {
+      const dow = new Date(Date.UTC(curYear, curMonth - 1, d)).getUTCDay();
+      if (dow >= 1 && dow <= 5) count += 1;
+    }
+    return Math.max(count, 1);
+  })();
+  const shopCheckDays = new Map<string, Set<string>>();
+  for (const a of monthAtt.items) {
+    const shop = a.user.shopCode ?? "–";
+    let set = shopCheckDays.get(shop);
+    if (!set) {
+      set = new Set<string>();
+      shopCheckDays.set(shop, set);
+    }
+    set.add(`${a.userId}_${a.workDate.toISOString().slice(0, 10)}`);
+  }
+  const shopStudents = new Map<string, number>();
+  for (const u of students.items) {
+    const shop = u.shopCode ?? "–";
+    shopStudents.set(shop, (shopStudents.get(shop) ?? 0) + 1);
+  }
+  const shopRates = [...shopStudents.entries()]
+    .filter(([shop]) => !shopCode || shop === shopCode)
+    .map(([shop, count]) => {
+      const days = shopCheckDays.get(shop)?.size ?? 0;
+      const rate = Math.min(100, Math.round((days / (count * elapsedWeekdays)) * 100));
+      return { shop, rate };
+    })
+    .sort((a, b) => (a.shop < b.shop ? -1 : 1));
+  const avgRate =
+    shopRates.length === 0
+      ? 0
+      : Math.round(
+          shopRates.reduce((sum, r) => {
+            const count = shopStudents.get(r.shop) ?? 0;
+            return sum + (r.rate * count * elapsedWeekdays) / 100;
+          }, 0) /
+            Math.max(
+              1,
+              shopRates.reduce((sum, r) => sum + (shopStudents.get(r.shop) ?? 0), 0) *
+                elapsedWeekdays,
+            ) *
+            100,
+        );
+  const minRate = Math.min(...shopRates.map((r) => r.rate), 100);
 
-  const notInNames = allRows.filter((r) => r.status === "not-in").map((r) => r.name);
+  // การเงินเดือนนี้
+  let inCents = 0;
+  let outCents = 0;
+  for (const e of monthMoney.items) {
+    const c = amountToCents(String(e.amount));
+    if (e.direction === "IN") inCents += c;
+    else outCents += c;
+  }
+  const spentCents = inCents - outCents;
+  const spentPct = inCents === 0 ? 0 : Math.max(0, Math.round((spentCents / inCents) * 100));
+  const baht = (c: number) =>
+    `฿${Math.round(c / 100).toLocaleString("en-US")}`;
 
-  const preserved: Record<string, string> = {
+  const linkBase: Record<string, string> = {
     ...(shopCode ? { shopCode } : {}),
-    ...(status !== "all" ? { status } : {}),
-    ...(q ? { q } : {}),
   };
 
-  const pill = (value: string, label: string) => {
-    const active = status === value;
-    const href = `/admin?${new URLSearchParams({ ...preserved, ...(value === "all" ? {} : { status: value }) }).toString()}`;
-    return active ? (
-      <span aria-current="true" className="inline-flex min-h-[36px] items-center rounded-full border border-[#1d63d8] bg-[#eaf1ff] px-3.5 text-[13px] font-semibold text-[#1750b8]">
-        {label}
-      </span>
-    ) : (
-      <Link href={href} className="inline-flex min-h-[36px] items-center rounded-full border border-[#c3cfe0] bg-white px-3.5 text-[13px] font-medium text-[#33425b]">
-        {label}
-      </Link>
-    );
-  };
+  const pillHref = (value: string) =>
+    `/admin?${new URLSearchParams(value === "all" ? linkBase : { ...linkBase, status: value }).toString()}`;
+
+  const dateLabel = `${dayNumFmt.format(todayDate)} ${monthShortFmt.format(todayDate)} ${yearFmt.format(todayDate)}`;
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
+      <header className="ov-head">
         <div>
-          <h1 className="m-0 text-[28px] font-bold leading-snug">ภาพรวมวันนี้</h1>
-          <p className="mt-0.5 text-[15px] muted">{formatThaiHeader()}</p>
+          <h1>ภาพรวมวันนี้</h1>
+          <p>
+            {formatThaiHeader()} · นักศึกษาทั้งหมด {allRows.length} คน
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <form method="get" className="flex items-center gap-2.5">
-            {status !== "all" && <input type="hidden" name="status" value={status} />}
-            {q && <input type="hidden" name="q" value={q} />}
-            <label htmlFor="ov-shop" className="sr-only">สาขา</label>
-            <select id="ov-shop" name="shopCode" defaultValue={shopCode} className="input min-h-[44px] w-auto text-sm font-medium">
-              <option value="">ทุกสาขา</option>
-              {branches.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-            <button type="submit" className="btn btn-outline">กรอง</button>
-          </form>
-          <Link
-            href={`/admin/attendance?date=${todayKey}`}
-            className="btn btn-outline"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
-            {new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" }).format(todayDate)}
+        <div className="ov-head-actions">
+          <ShopSelect value={shopCode} options={shops} baseParams={status !== "all" ? { status } : {}} />
+          <Link href={`/admin/attendance?date=${todayKey}`} className="ov-datelink">
+            {dateLabel} (วันนี้)
           </Link>
           <ExportCsvButton
-            filename={`attendance-${todayKey}.csv`}
-            headers={["ชื่อ", "สาขา", "เช็กอิน", "เช็กเอาท์", "สถานะ"]}
-            rows={filtered.map((r) => [r.name, r.shop, r.checkIn, r.checkOut, STATUS_LABEL[r.status]])}
+            filename={`overview-${todayKey}.csv`}
+            headers={["ชื่อ", "ร้าน", "เช็กอิน", "เช็กเอาท์", "ชั่วโมงทำงาน", "สถานะ"]}
+            rows={filtered.map((r) => [
+              r.name,
+              r.shop,
+              r.checkIn,
+              r.checkOut,
+              r.hours ?? (r.working ? "กำลังนับเวลา" : "–"),
+              r.status === "done"
+                ? "ครบ"
+                : r.status === "working"
+                  ? "กำลังทำงาน"
+                  : r.status === "not-in"
+                    ? "ยังไม่เช็กอิน"
+                    : LEAVE_PILL[r.status].label,
+            ])}
           />
         </div>
       </header>
 
-      {/* Stat cards */}
-      <section aria-label="สรุปวันนี้" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2 .7 3.5 2.6 3.5 5.2" /></svg>}
-          iconBg="#e0e7ff" iconColor="#312e81" label="นักศึกษาทั้งหมด" value={allRows.length}
-        />
-        <StatCard
-          icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.8 2.8L16 9.5" /></svg>}
-          iconBg="#dbeafe" iconColor="#1750b8" label="เช็กอินแล้ว"
-          value={<>{checkedIn}<span className="ml-1.5 text-[13px] font-medium muted">{pct(checkedIn)}</span></>}
-        />
-        <StatCard
-          icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>}
-          iconBg="#e2e8f0" iconColor="#334155" label="ยังไม่เช็กอิน"
-          value={<>{notIn}<span className="ml-1.5 text-[13px] font-medium muted">{pct(notIn)}</span></>}
-        />
-        <StatCard
-          icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>}
-          iconBg="#fef3c7" iconColor="#78350f" label="ลาวันนี้"
-          value={<>{onLeave}<span className="ml-1.5 text-[13px] font-medium muted">{pct(onLeave)}</span></>}
-        />
-      </section>
-
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        {/* Table card */}
-        <Card label="การลงเวลาวันนี้" className="overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-5 pb-3.5">
-            <h2 className="m-0 text-[19px] font-semibold">การลงเวลาวันนี้</h2>
-            <form method="get" className="flex h-[42px] w-full max-w-[280px] items-center gap-2 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
-              {shopCode && <input type="hidden" name="shopCode" value={shopCode} />}
-              {status !== "all" && <input type="hidden" name="status" value={status} />}
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b6b82" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-              <label htmlFor="ov-q" className="sr-only">ค้นหานักศึกษา</label>
-              <input id="ov-q" name="q" type="search" defaultValue={first(params.q) ?? ""} placeholder="ค้นหาชื่อ หรือรหัส" maxLength={100} className="w-full min-w-0 border-none bg-transparent text-sm outline-none" />
-            </form>
-          </div>
-
-          <div className="flex flex-wrap gap-2 px-6 pb-4">
-            {pill("all", `ทั้งหมด ${allRows.length}`)}
-            {pill("in", `เช็กอินแล้ว ${checkedIn}`)}
-            {pill("not", `ยังไม่เช็กอิน ${notIn}`)}
-            {pill("leave", `ลา ${onLeave}`)}
-          </div>
-
-          {pageRows.length === 0 ? (
-            <p className="muted px-6 pb-6 text-sm">ไม่พบข้อมูลตามเงื่อนไข</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="tbl">
-                <caption className="sr-only">รายการลงเวลานักศึกษาวันนี้</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">นักศึกษา</th>
-                    <th scope="col">สาขา</th>
-                    <th scope="col">เช็กอิน</th>
-                    <th scope="col">เช็กเอาท์</th>
-                    <th scope="col">รูป</th>
-                    <th scope="col">สถานะ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((r) => (
-                    <tr key={r.id}>
-                      <td>
-                        <span className="block font-semibold">{r.name}</span>
-                        <span className="block text-xs muted">{r.year}</span>
-                      </td>
-                      <td>{r.shop}</td>
-                      <td>{r.checkIn}</td>
-                      <td>{r.checkOut}</td>
-                      <td>
-                        {r.photoUrl ? (
-                          <a href={r.photoUrl} target="_blank" rel="noreferrer" aria-label={`ดูรูปเข้างานของ ${r.name}`}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={r.photoUrl} alt="" className="h-9 w-9 rounded-lg object-cover" />
-                          </a>
-                        ) : (
-                          <span className="muted">–</span>
-                        )}
-                      </td>
-                      <td><StatusBadge status={r.status} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <Pager
-            pathname="/admin"
-            params={preserved}
-            page={safePage}
-            totalPages={totalPages}
-            numbered
-            summary={`แสดง ${from}–${to} จาก ${filtered.length} คน`}
-          />
-        </Card>
-
-        {/* Right column */}
         <div className="flex min-w-0 flex-col gap-6">
-          <Card labelledBy="share-h" className="card-pad">
-            <h2 id="share-h" className="m-0 text-[17px] font-semibold">สัดส่วนวันนี้</h2>
-            <div className="mt-5 flex justify-center">
-              <div role="img" aria-label={`เช็กอินแล้ว ${pct(checkedIn)} ยังไม่เช็กอิน ${pct(notIn)} ลา ${pct(onLeave)}`} className="flex h-44 w-44 items-center justify-center rounded-full" style={{ background: donut }}>
-                <div className="flex h-[122px] w-[122px] flex-col items-center justify-center rounded-full bg-white">
-                  <span className="text-[30px] font-bold leading-none">
-                    {allRows.length === 0 ? 0 : Math.round((checkedIn / allRows.length) * 100)}%
-                  </span>
-                  <span className="text-xs muted">เช็กอินแล้ว</span>
-                </div>
-              </div>
+          <section aria-label="การเข้างานวันนี้" className="card card-pad">
+            <h2 className="m-0 text-[17px] font-semibold">การเข้างานวันนี้</h2>
+            <p className="ov-rate-value">
+              {pct1(checkedIn).replace("%", "")}
+              <span style={{ fontSize: 28 }}>%</span>{" "}
+              <span className="ov-rate-sub">
+                เช็กอินแล้ว {checkedIn} จาก {allRows.length} คน
+              </span>
+            </p>
+            <div className="ov-bar" role="img" aria-label={`เช็กอินแล้ว ${pct1(checkedIn)} ยังไม่เช็กอิน ${pct1(notIn)} ลา ${pct1(onLeave)}`}>
+              <span style={{ width: pct1(checkedIn), background: "#1d63d8" }} />
+              <span style={{ width: pct1(notIn), background: "#c3cfe0" }} />
+              <span style={{ width: pct1(onLeave), background: "#f59e0b" }} />
             </div>
-            <ul className="m-0 mt-5 flex list-none flex-col gap-2.5 p-0 text-sm">
-              <li className="flex items-center gap-2.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-[#1d63d8]" /><span className="flex-1">เช็กอินแล้ว</span><span className="font-semibold">{checkedIn}</span></li>
-              <li className="flex items-center gap-2.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-[#94a3b8]" /><span className="flex-1">ยังไม่เช็กอิน</span><span className="font-semibold">{notIn}</span></li>
-              <li className="flex items-center gap-2.5"><span aria-hidden="true" className="h-3 w-3 rounded bg-[#f59e0b]" /><span className="flex-1">ลา</span><span className="font-semibold">{onLeave}</span></li>
-            </ul>
-          </Card>
+            <div className="ov-legend">
+              <span className="ov-legend-item">
+                <span className="ov-dot" style={{ background: "#1d63d8" }} />
+                <span>เช็กอินแล้ว<strong>{checkedIn} {pct1(checkedIn)}</strong></span>
+              </span>
+              <span className="ov-legend-item">
+                <span className="ov-dot" style={{ background: "#c3cfe0" }} />
+                <span>ยังไม่เช็กอิน<strong>{notIn} {pct1(notIn)}</strong></span>
+              </span>
+              <span className="ov-legend-item">
+                <span className="ov-dot" style={{ background: "#f59e0b" }} />
+                <span>ลาวันนี้<strong>{onLeave} {pct1(onLeave)}</strong></span>
+              </span>
+            </div>
+          </section>
 
-          <Card labelledBy="todo-h" className="card-pad">
-            <h2 id="todo-h" className="m-0 text-[17px] font-semibold">ต้องติดตาม</h2>
-            <ul className="m-0 mt-3.5 flex list-none flex-col gap-2.5 p-0">
-              <li className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3.5">
-                <div className="flex items-center justify-between gap-2.5">
-                  <div>
-                    <p className="m-0 text-sm font-semibold text-[#78350f]">ลืมเช็กเอาท์เมื่อวาน</p>
-                    <p className="m-0 text-[13px] text-[#78350f]">{missedOut.total} คน</p>
-                  </div>
-                  <Link href={`/admin/attendance?date=${yesterdayKey}&status=checked-in`} className="btn min-h-[36px] border border-[#d97706] bg-white px-3.5 text-[13px] font-semibold text-[#78350f]">
-                    ดูรายชื่อ
-                  </Link>
-                </div>
-                {missedOut.items.length > 0 && (
-                  <details className="mt-2 text-[13px] text-[#78350f]">
-                    <summary className="cursor-pointer font-medium">ดูรายชื่อย่อ</summary>
-                    <ul className="m-1.5 ml-4 list-disc">
-                      {missedOut.items.slice(0, 10).map((a) => (
-                        <li key={a.id}>{a.user.firstName} {a.user.lastName}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </li>
-              <li className="rounded-xl border border-[#e3e9f2] bg-[#f8fafd] p-3.5">
-                <div className="flex items-center justify-between gap-2.5">
-                  <div>
-                    <p className="m-0 text-sm font-semibold">ยังไม่เช็กอินวันนี้</p>
-                    <p className="m-0 text-[13px] muted">{notIn} คน</p>
-                  </div>
-                  <Link href="/admin/users" className="btn btn-outline min-h-[36px] px-3.5 text-[13px] font-semibold">
-                    ดูรายชื่อ
-                  </Link>
-                </div>
-                {notInNames.length > 0 && (
-                  <details className="muted mt-2 text-[13px]">
-                    <summary className="cursor-pointer font-medium">ดูรายชื่อย่อ</summary>
-                    <ul className="m-1.5 ml-4 list-disc">
-                      {notInNames.slice(0, 10).map((n) => (
-                        <li key={n}>{n}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </li>
-            </ul>
-          </Card>
-
-          <Card labelledBy="lv-h" className="card-pad">
-            <h2 id="lv-h" className="m-0 text-[17px] font-semibold">การลาล่าสุด</h2>
-            {todayLeaves.items.length === 0 ? (
-              <p className="muted mt-3.5 text-sm">วันนี้ยังไม่มีใบลา</p>
-            ) : (
-              <ul className="m-0 mt-3.5 flex list-none flex-col gap-2 p-0">
-                {todayLeaves.items.slice(0, 5).map((l) => (
-                  <li key={l.id} className="flex items-center justify-between gap-2 rounded-xl bg-[#f8fafd] px-3.5 py-2.5">
-                    <span className="text-sm font-medium">{l.user.firstName} {l.user.lastName}</span>
-                    {l.type === "SICK" ? <Badge tone="pink">ลาป่วย</Badge>
-                      : l.type === "PERSONAL" ? <Badge tone="yellow">ลากิจ</Badge>
-                      : <Badge tone="gray">วันหยุด</Badge>}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-3 text-right">
-              <Link href="/admin/leaves" className="text-sm font-semibold text-[#1750b8] hover:underline">
-                ดูใบลาทั้งหมด →
+          <section aria-label="การลงเวลาวันนี้" className="card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5 pb-3">
+              <h2 className="m-0 text-[19px] font-semibold">การลงเวลาวันนี้</h2>
+              <Link href={`/admin/attendance?date=${todayKey}`} className="text-sm font-semibold text-[#1750b8] no-underline hover:underline">
+                เปิดหน้าการลงเวลา ›
               </Link>
             </div>
-          </Card>
+            <div className="ov-pills px-6 pb-4">
+              {(
+                [
+                  ["all", `ทั้งหมด ${allRows.length}`],
+                  ["in", `เช็กอินแล้ว ${checkedIn}`],
+                  ["not", `ยังไม่เช็กอิน ${notIn}`],
+                  ["leave", `ลา ${onLeave}`],
+                ] as const
+              ).map(([value, label]) => (
+                <Link
+                  key={value}
+                  href={pillHref(value)}
+                  className="ov-pill"
+                  aria-current={(status === "all" ? "all" : status) === value ? "page" : undefined}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+            {shown.length === 0 ? (
+              <p className="muted px-6 pb-6 text-sm">ไม่พบข้อมูลตามเงื่อนไข</p>
+            ) : (
+              <div className="ov-table-scroll">
+                <table className="tbl">
+                  <caption className="sr-only">การลงเวลาวันนี้</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">นักศึกษา</th>
+                      <th scope="col">ร้าน</th>
+                      <th scope="col">เช็กอิน</th>
+                      <th scope="col">เช็กเอาท์</th>
+                      <th scope="col">ชั่วโมงทำงาน</th>
+                      <th scope="col">สถานะ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shown.map((r) => (
+                      <tr key={r.id}>
+                        <td>
+                          <span className="ov-user">
+                            <span className="ov-avatar" data-tone={toneOf(r.id)} aria-hidden="true">
+                              {r.name.charAt(0)}
+                            </span>
+                            {r.name}
+                          </span>
+                        </td>
+                        <td>{r.shop}</td>
+                        <td className="tabular-nums">{r.checkIn}</td>
+                        <td className="tabular-nums">{r.checkOut}</td>
+                        <td className="font-semibold">
+                          {r.hours ?? (r.working ? "กำลังนับเวลา…" : "–")}
+                        </td>
+                        <td>
+                          {r.status === "done" ? (
+                            <span className="badge badge-green">ครบ</span>
+                          ) : r.status === "working" ? (
+                            <span className="badge badge-blue">กำลังทำงาน</span>
+                          ) : r.status === "not-in" ? (
+                            <span className="badge badge-gray">ยังไม่เช็กอิน</span>
+                          ) : r.status === "leave-sick" ? (
+                            <span className="badge badge-pink">ลาป่วย</span>
+                          ) : r.status === "leave-personal" ? (
+                            <span className="badge badge-yellow">ลากิจ</span>
+                          ) : (
+                            <span className="badge badge-gray">วันหยุด</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="ov-foot">
+              <span>
+                แสดง {shown.length} จาก {filtered.length} คน
+              </span>
+              <Link href={`/admin/attendance?date=${todayKey}`}>ดูทั้งหมด ›</Link>
+            </div>
+          </section>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-6">
+          <section aria-label="ต้องติดตาม" className="card card-pad">
+            <h2 className="m-0 text-[17px] font-semibold">ต้องติดตาม</h2>
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="ov-todo" style={{ background: "#fffbeb" }}>
+                <span>
+                  <strong style={{ color: "#92400e" }}>{notIn}</strong>
+                  <span style={{ color: "#92400e" }}>ยังไม่เช็กอินวันนี้</span>
+                  <span style={{ color: "#b45309" }}>ยังไม่มีเวลาเข้าในระบบ</span>
+                </span>
+                <Link href={`/admin?${new URLSearchParams({ ...linkBase, status: "not" }).toString()}`} style={{ color: "#1750b8" }}>
+                  ดูรายชื่อ ›
+                </Link>
+              </div>
+              <div className="ov-todo" style={{ background: "#fef2f2" }}>
+                <span>
+                  <strong style={{ color: "#be123c" }}>{missedOut.total}</strong>
+                  <span style={{ color: "#881337" }}>ลืมเช็กเอาท์เมื่อวาน</span>
+                  <span style={{ color: "#be123c" }}>ชั่วโมงทำงานเมื่อวานยังไม่ครบ</span>
+                </span>
+                <Link href={`/admin/attendance?date=${yesterdayKey}`} style={{ color: "#1750b8" }}>
+                  ดูรายชื่อ ›
+                </Link>
+              </div>
+              <div className="ov-todo" style={{ background: "#eaf1ff" }}>
+                <span>
+                  <strong style={{ color: "#1e3a8a" }}>{incompleteMoney}</strong>
+                  <span style={{ color: "#1e3a8a" }}>ข้อมูลเงินไม่ครบ</span>
+                  <span style={{ color: "#475569" }}>เมื่อวานไม่ได้กรอกเงินคงเหลือ</span>
+                </span>
+                <Link href={`/admin/attendance?date=${todayKey}`} style={{ color: "#1750b8" }}>
+                  ดูรายชื่อ ›
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <section aria-label="อัตราเข้างานรายร้าน" className="card card-pad">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="m-0 text-[17px] font-semibold">อัตราเข้างานรายร้าน</h2>
+              <span className="text-[13px] muted">เฉลี่ย {avgRate}% เดือนนี้</span>
+            </div>
+            <div className="mt-2">
+              {shopRates.map((r) => (
+                <div key={r.shop} className="ov-shopbar">
+                  <span className="muted font-medium">{r.shop}</span>
+                  <span className="ov-shopbar-track">
+                    <span
+                      className="ov-shopbar-fill"
+                      style={{
+                        width: `${r.rate}%`,
+                        background: r.rate === minRate && shopRates.length > 1 ? "#f59e0b" : "#1d63d8",
+                      }}
+                    />
+                  </span>
+                  <span className="text-right font-bold tabular-nums">{r.rate}%</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section aria-label="ลาและวันหยุดวันนี้" className="card card-pad">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="m-0 text-[17px] font-semibold">ลาและวันหยุดวันนี้</h2>
+              <span className="text-[22px] font-bold tabular-nums">
+                {todayLeaves.total} <span className="text-[13px] font-medium muted">คน</span>
+              </span>
+            </div>
+            <div className="mt-2">
+              {todayLeaves.items.slice(0, 5).map((l) => (
+                <div key={l.id} className="ov-leave-row">
+                  <span>
+                    <span className="ov-leave-name">
+                      {l.user.firstName} {l.user.lastName}
+                    </span>
+                    <span className="ov-leave-shop">{l.user.shopCode ?? "–"}</span>
+                  </span>
+                  <span
+                    className="ov-type"
+                    data-type={l.type === "SICK" ? "SICK" : l.type === "PERSONAL" ? "PERSONAL" : "HOLIDAY"}
+                  >
+                    {l.type === "SICK" ? "ลาป่วย" : l.type === "PERSONAL" ? "ลากิจ" : "วันหยุด"}
+                  </span>
+                </div>
+              ))}
+              {todayLeaves.items.length === 0 && (
+                <p className="muted py-4 text-center text-sm">วันนี้ยังไม่มีใบลา</p>
+              )}
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[12px] muted">ดูอย่างเดียว · ไม่ต้องรออนุมัติ</span>
+              <Link href="/admin/leaves" className="text-sm font-semibold text-[#1750b8] no-underline hover:underline">
+                ดูทั้งหมด ›
+              </Link>
+            </div>
+          </section>
+
+          <section aria-label="การเงินเดือนนี้" className="card card-pad">
+            <h2 className="m-0 text-[17px] font-semibold">การเงินเดือนนี้</h2>
+            <div className="ov-money-grid mt-3">
+              <span>เอาเข้ารวม<strong>{baht(inCents)}</strong></span>
+              <span>คงเหลือรวม<strong>{baht(outCents)}</strong></span>
+              <span>ใช้ไปรวม<strong style={{ color: "#1750b8" }}>{baht(spentCents)}</strong></span>
+            </div>
+            <div className="ov-money-bar" role="img" aria-label={`ใช้ไป ${spentPct}% ของเงินที่นำเข้า`}>
+              <span style={{ width: `${Math.min(100, spentPct)}%` }} />
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[12px] muted">ใช้ไป {spentPct}% ของเงินที่นำเข้า</span>
+              <Link href="/admin/finance" className="text-sm font-semibold text-[#1750b8] no-underline hover:underline">
+                ดูการเงินนักศึกษา ›
+              </Link>
+            </div>
+          </section>
         </div>
       </div>
     </div>

@@ -1,0 +1,458 @@
+/* หน้า /admin/leaves — สไตล์ตาม mock (ไม่แตะ globals.css) */
+
+.admin-leaves-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-leaves-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.admin-leaves-head p {
+  margin: 2px 0 0;
+  font-size: 15px;
+  color: #5b6b82;
+}
+
+.admin-leaves-head-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* สลับมุมมอง รายการ | ไทม์ไลน์ */
+.admin-leaves-view {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #e9eff9;
+}
+
+.admin-leaves-view a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #5b6b82;
+  text-decoration: none;
+}
+
+.admin-leaves-view a[aria-current="page"] {
+  background: #fff;
+  color: #0f1f3a;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(15, 31, 58, 0.15);
+}
+
+/* ตัวเลื่อนเดือน */
+.admin-leaves-monthnav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e3e9f2;
+}
+
+.admin-leaves-monthnav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: #1750b8;
+  text-decoration: none;
+}
+
+.admin-leaves-monthnav span {
+  min-width: 110px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* การ์ดสถิติ */
+.admin-leaves-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-leaves-stat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+}
+
+.admin-leaves-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 14px;
+}
+
+.admin-leaves-stat-label {
+  margin: 0;
+  font-size: 13px;
+  color: #5b6b82;
+}
+
+.admin-leaves-stat-value {
+  margin: 2px 0 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* แถบค้นหา */
+.admin-leaves-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+}
+
+.admin-leaves-search {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+
+.admin-leaves-search svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: #8696ae;
+  pointer-events: none;
+}
+
+.admin-leaves-search input {
+  padding-left: 40px;
+}
+
+.admin-leaves-shop {
+  flex: 0 1 200px;
+  min-width: 140px;
+}
+
+.admin-leaves-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-leaves-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid #d5deeb;
+  background: #fff;
+  color: #33425b;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.admin-leaves-pill[aria-current="true"] {
+  border-color: #1d63d8;
+  background: #eaf1ff;
+  color: #1750b8;
+  font-weight: 600;
+}
+
+/* ตาราง */
+.admin-leaves-table-card {
+  overflow: hidden;
+}
+
+.admin-leaves-table-scroll {
+  overflow-x: auto;
+}
+
+.admin-leaves-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.admin-leaves-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.admin-leaves-avatar[data-tone="blue"] { background: #dbeafe; color: #1e3a8a; }
+.admin-leaves-avatar[data-tone="green"] { background: #dcfce7; color: #14532d; }
+.admin-leaves-avatar[data-tone="yellow"] { background: #fef3c7; color: #78350f; }
+.admin-leaves-avatar[data-tone="pink"] { background: #ffe4e6; color: #881337; }
+.admin-leaves-avatar[data-tone="lavender"] { background: #e6e6fa; color: #3b3480; }
+
+.admin-leaves-username {
+  display: block;
+  font-weight: 600;
+}
+
+.admin-leaves-shopchip {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: #eef2f7;
+  color: #33425b;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-leaves-type {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-leaves-type[data-type="SICK"] { background: #ffe4e6; color: #881337; }
+.admin-leaves-type[data-type="PERSONAL"] { background: #e6e6fa; color: #3b3480; }
+.admin-leaves-type[data-type="HOLIDAY"] { background: #dbeafe; color: #1e3a8a; }
+
+.admin-leaves-date {
+  white-space: nowrap;
+}
+
+.admin-leaves-daypill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 8px;
+  background: #eef2f7;
+  color: #33425b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-leaves-link {
+  color: #1750b8;
+  font-size: 14px;
+  font-weight: 500;
+  background: none;
+  border: 0;
+  padding: 10px 4px;
+  min-height: 44px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.admin-leaves-link:hover {
+  text-decoration: underline;
+}
+
+/* ไทม์ไลน์ */
+.admin-leaves-timeline-scroll {
+  overflow-x: auto;
+  padding: 20px 24px 8px;
+}
+
+.admin-leaves-timeline {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.admin-leaves-timeline th,
+.admin-leaves-timeline td {
+  padding: 5px 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.admin-leaves-timeline thead th {
+  color: #5b6b82;
+  font-weight: 500;
+  min-width: 22px;
+}
+
+.admin-leaves-timeline thead th[data-weekend="true"] {
+  color: #dc2626;
+}
+
+.admin-leaves-timeline thead th[data-today="true"] {
+  background: #eaf1ff;
+  border-radius: 8px;
+  color: #1750b8;
+  font-weight: 700;
+}
+
+.admin-leaves-timeline tbody th {
+  text-align: left;
+  padding-right: 12px;
+}
+
+.admin-leaves-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #e8edf5;
+  vertical-align: middle;
+}
+
+.admin-leaves-dot[data-type="SICK"] { background: #f9a8d4; }
+.admin-leaves-dot[data-type="PERSONAL"] { background: #a78bfa; }
+.admin-leaves-dot[data-type="HOLIDAY"] { background: #1d63d8; }
+
+.admin-leaves-timeline-total {
+  font-weight: 700;
+  font-size: 13px;
+  padding-left: 12px !important;
+}
+
+.admin-leaves-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 24px 20px;
+  font-size: 13px;
+  color: #5b6b82;
+}
+
+/* โมดัล */
+.admin-leaves-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 48px 16px;
+  background: rgba(15, 31, 58, 0.45);
+}
+
+.admin-leaves-modal {
+  width: 100%;
+  max-width: 540px;
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 24px 64px rgba(15, 31, 58, 0.25);
+}
+
+.admin-leaves-modal-body {
+  padding: 28px 28px 20px;
+}
+
+.admin-leaves-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-leaves-modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.admin-leaves-modal-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.admin-leaves-modal-user .admin-leaves-avatar {
+  width: 48px;
+  height: 48px;
+  font-size: 19px;
+}
+
+.admin-leaves-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.admin-leaves-summary-box {
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.admin-leaves-summary-box strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+}
+
+.admin-leaves-entry {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 2px;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.admin-leaves-entry:last-child {
+  border-bottom: 0;
+}
+
+.admin-leaves-entry-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 999px;
+}
+
+.admin-leaves-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 28px 24px;
+  border-top: 1px solid #edf1f7;
+}
+
+@media (max-width: 1024px) {
+  .admin-leaves-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-leaves-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

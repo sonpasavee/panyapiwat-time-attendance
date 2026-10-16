@@ -9,6 +9,210 @@ import {
   type DailyMoneySummary,
 } from "@/services/money-tracker.logic";
 
+export type FinanceUserRow = {
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    studentId: string | null;
+    shopCode: string | null;
+  };
+  inCash: string;
+  inTrue: string;
+  inTotal: string;
+  outCash: string;
+  outTrue: string;
+  outTotal: string;
+  spentCash: string;
+  spentTrue: string;
+  spentTotal: string;
+  completeDays: number;
+  incompleteDays: number;
+};
+
+export type FinanceDayRow = {
+  dateISO: string;
+  students: number;
+  inCash: string;
+  inTrue: string;
+  inTotal: string;
+  outCash: string;
+  outTrue: string;
+  outTotal: string;
+  spentCash: string;
+  spentTrue: string;
+  spentTotal: string;
+};
+
+// สรุปการเงินรายเดือนทั้งระบบ (หน้า /admin/finance)
+// - ใช้ไปรวมนับเฉพาะวันที่ข้อมูลครบ (มีทั้ง IN และ OUT อย่างน้อยหนึ่งประเภท)
+// - ช่องที่เว้นว่างตอนกรอก = ไม่มีแถว สูตรถือเป็น 0
+export async function getMonthlyFinance(month: number, year: number) {
+  const entries = await prisma.moneyEntry.findMany({
+    where: {
+      attendance: {
+        user: { role: "STUDENT" },
+        workDate: monthRange(year, month),
+      },
+    },
+    select: {
+      attendanceId: true,
+      direction: true,
+      moneyType: true,
+      amount: true,
+      attendance: {
+        select: {
+          workDate: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              studentId: true,
+              shopCode: true,
+            },
+          },
+        },
+      },
+    },
+    take: 20000,
+  });
+
+  // จับกลุ่มตาม attendance (1 วันของ 1 คน) แล้วสรุป IN−OUT
+  const byAttendance = new Map<
+    string,
+    {
+      user: (typeof entries)[number]["attendance"]["user"];
+      dateISO: string;
+      entries: Array<{
+        moneyType: "CASH" | "TRUEMONEY";
+        direction: "IN" | "OUT";
+        amount: { toString(): string };
+      }>;
+    }
+  >();
+  for (const e of entries) {
+    const key = e.attendanceId;
+    let group = byAttendance.get(key);
+    if (!group) {
+      group = {
+        user: e.attendance.user,
+        dateISO: e.attendance.workDate.toISOString().slice(0, 10),
+        entries: [],
+      };
+      byAttendance.set(key, group);
+    }
+    group.entries.push({
+      moneyType: e.moneyType,
+      direction: e.direction,
+      amount: { toString: () => String(e.amount) },
+    });
+  }
+
+  const users = new Map<string, FinanceUserRow & { user: FinanceUserRow["user"] }>();
+
+  type DayAcc = {
+    students: Set<string>;
+    inCash: number;
+    inTrue: number;
+    outCash: number;
+    outTrue: number;
+    spentCash: number;
+    spentTrue: number;
+  };
+  const days = new Map<string, DayAcc>();
+
+  for (const group of byAttendance.values()) {
+    const summary = summarizeDailyMoney(group.entries);
+    let row = users.get(group.user.id);
+    if (!row) {
+      row = {
+        user: group.user,
+        inCash: "0.00",
+        inTrue: "0.00",
+        inTotal: "0.00",
+        outCash: "0.00",
+        outTrue: "0.00",
+        outTotal: "0.00",
+        spentCash: "0.00",
+        spentTrue: "0.00",
+        spentTotal: "0.00",
+        completeDays: 0,
+        incompleteDays: 0,
+      };
+      users.set(group.user.id, row);
+    }
+    const add = (field: "inCash" | "inTrue" | "outCash" | "outTrue" | "spentCash" | "spentTrue", v: string) => {
+      row[field] = centsToAmount(amountToCents(row[field]) + amountToCents(v));
+    };
+    add("inCash", summary.CASH.in);
+    add("inTrue", summary.TRUEMONEY.in);
+    add("outCash", summary.CASH.out);
+    add("outTrue", summary.TRUEMONEY.out);
+    if (summary.complete) {
+      row.completeDays += 1;
+      add("spentCash", summary.CASH.spent);
+      add("spentTrue", summary.TRUEMONEY.spent);
+    } else {
+      row.incompleteDays += 1;
+    }
+
+    let day = days.get(group.dateISO);
+    if (!day) {
+      day = {
+        students: new Set<string>(),
+        inCash: 0,
+        inTrue: 0,
+        outCash: 0,
+        outTrue: 0,
+        spentCash: 0,
+        spentTrue: 0,
+      };
+      days.set(group.dateISO, day);
+    }
+    day.students.add(group.user.id);
+    day.inCash += amountToCents(summary.CASH.in);
+    day.inTrue += amountToCents(summary.TRUEMONEY.in);
+    day.outCash += amountToCents(summary.CASH.out);
+    day.outTrue += amountToCents(summary.TRUEMONEY.out);
+    if (summary.complete) {
+      day.spentCash += amountToCents(summary.CASH.spent);
+      day.spentTrue += amountToCents(summary.TRUEMONEY.spent);
+    }
+  }
+
+  const userRows: FinanceUserRow[] = [...users.values()].map((row) => ({
+    ...row,
+    inTotal: centsToAmount(amountToCents(row.inCash) + amountToCents(row.inTrue)),
+    outTotal: centsToAmount(amountToCents(row.outCash) + amountToCents(row.outTrue)),
+    spentTotal: centsToAmount(amountToCents(row.spentCash) + amountToCents(row.spentTrue)),
+  }));
+  userRows.sort((a, b) =>
+    `${a.user.firstName} ${a.user.lastName}`.localeCompare(
+      `${b.user.firstName} ${b.user.lastName}`,
+      "th",
+    ),
+  );
+
+  const dayRows: FinanceDayRow[] = [...days.entries()]
+    .map(([dateISO, d]) => ({
+      dateISO,
+      students: d.students.size,
+      inCash: centsToAmount(d.inCash),
+      inTrue: centsToAmount(d.inTrue),
+      inTotal: centsToAmount(d.inCash + d.inTrue),
+      outCash: centsToAmount(d.outCash),
+      outTrue: centsToAmount(d.outTrue),
+      outTotal: centsToAmount(d.outCash + d.outTrue),
+      spentCash: centsToAmount(d.spentCash),
+      spentTrue: centsToAmount(d.spentTrue),
+      spentTotal: centsToAmount(d.spentCash + d.spentTrue),
+    }))
+    .sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
+
+  return { users: userRows, days: dayRows };
+}
+
 export async function getMyMoneyReport(
   userId: string,
   month: number,
