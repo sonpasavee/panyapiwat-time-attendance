@@ -329,6 +329,67 @@ export function pagination(search: URLSearchParams) {
 }
 
 // ============================================
+// 15. Admin Create-User Schema (POST /api/admin/users)
+// ============================================
+
+export const userCreateSchema = z
+  .object({
+    firstName: z.string().trim().min(1).max(80),
+    lastName: z.string().trim().min(1).max(80),
+    studentId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(40)
+      .nullable()
+      .optional(),
+    employeeCode: z
+      .string()
+      .trim()
+      .min(1)
+      .max(40)
+      .nullable()
+      .optional(),
+    shopCode: z
+      .string()
+      .trim()
+      .max(40)
+      .nullable()
+      .optional(),
+    gradeLevel: z.number().int().min(1).max(20).nullable().optional(),
+    role: z.enum(["ADMIN", "STUDENT"]).default("STUDENT"),
+    isActive: z.boolean().default(true),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.role === "STUDENT") {
+      if (!value.studentId) {
+        context.addIssue({
+          code: "custom",
+          path: ["studentId"],
+          message: "studentId is required for STUDENT",
+        });
+      }
+      if (!value.employeeCode) {
+        context.addIssue({
+          code: "custom",
+          path: ["employeeCode"],
+          message: "employeeCode is required for STUDENT",
+        });
+      }
+    }
+    if (!value.studentId && !value.employeeCode) {
+      context.addIssue({
+        code: "custom",
+        path: ["employeeCode"],
+        message: "studentId หรือ employeeCode อย่างน้อยหนึ่งอย่างต้องมีค่า",
+      });
+    }
+  });
+
+export type UserCreateInput = z.infer<typeof userCreateSchema>;
+
+// ============================================
 // 14. Month / Year Helper
 // ============================================
 

@@ -1,6 +1,8 @@
 
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
+import { hashPassword } from "@/lib/auth";
+import { randomBytes } from "node:crypto";
 
 // ============================================
 // 1. Public User Fields
@@ -173,6 +175,167 @@ export function changeUserRole(
 }
 
 // ============================================
+// 9. Create User By Admin (POST /api/admin/users)
+// ============================================
+
+export async function createUserByAdmin(input: {
+  firstName: string;
+  lastName: string;
+  studentId?: string | null;
+  employeeCode?: string | null;
+  shopCode?: string | null;
+  gradeLevel?: number | null;
+  role?: "ADMIN" | "STUDENT";
+  isActive?: boolean;
+}) {
+  const role = input.role ?? "STUDENT";
+  const studentId = input.studentId?.trim() || null;
+  const employeeCode = input.employeeCode?.trim() || null;
+
+  if (role === "STUDENT" && (!studentId || !employeeCode)) {
+    throw new ApiError(
+      400,
+      "STUDENT requires studentId and employeeCode",
+      "VALIDATION_ERROR",
+    );
+  }
+  if (!studentId && !employeeCode) {
+    throw new ApiError(
+      400,
+      "studentId หรือ employeeCode อย่างน้อยหนึ่งอย่างต้องมีค่า",
+      "VALIDATION_ERROR",
+    );
+  }
+
+  const username = studentId ?? employeeCode!;
+
+  const identifiers = [username, studentId, employeeCode].filter(
+    (value): value is string => value !== null,
+  );
+  const conflicting = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { username: { in: identifiers } },
+        { studentId: { in: identifiers } },
+        { employeeCode: { in: identifiers } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (conflicting) {
+    throw new ApiError(
+      409,
+      "รหัสซ้ำกับบัญชีที่มีอยู่ในระบบ",
+      "USER_CONFLICT",
+    );
+  }
+
+  const initialPassword = employeeCode ?? studentId!;
+
+  return prisma.user.create({
+    data: {
+      username,
+      studentId,
+      employeeCode,
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      shopCode: input.shopCode?.trim() || null,
+      gradeLevel: input.gradeLevel ?? null,
+      yearLevel: input.gradeLevel ?? null,
+      passwordHash: await hashPassword(initialPassword),
+      role,
+      isActive: input.isActive ?? true,
+    },
+    select: publicUser,
+  });
+}
+
+// ============================================
+// 10. Delete User By Admin (DELETE /api/admin/users/[id])
+// ============================================
+
+export async function deleteUserByAdmin(id: string, actorId: string) {
+  if (actorId === id) {
+    throw new ApiError(
+      409,
+      "ไม่สามารถลบบัญชีของตนเองได้",
+      "SELF_DELETE_PROTECTION",
+    );
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, role: true },
+  });
+  if (!existing) {
+    throw new ApiError(404, "User not found", "NOT_FOUND");
+  }
+
+  const [attendanceCount, leaveCount] = await Promise.all([
+    prisma.attendance.count({ where: { userId: id } }),
+    prisma.leave.count({ where: { userId: id } }),
+  ]);
+  if (attendanceCount > 0 || leaveCount > 0) {
+    throw new ApiError(
+      409,
+      "ไม่สามารถลบได้ เนื่องจากมีประวัติการลงเวลาหรือการลา",
+      "USER_HAS_RECORDS",
+    );
+  }
+
+  await prisma.session.deleteMany({ where: { userId: id } });
+  await prisma.user.delete({ where: { id } });
+
+  return { id, deleted: true };
+}
+
+// ============================================
+// 11. Reset User Password (POST /api/admin/users/[id]/reset-password)
+// รีเซ็ตกลับเป็นรหัสเริ่มต้น (รหัสพนักงาน หรือรหัสนักศึกษา)
+// ============================================
+
+export async function resetUserPassword(id: string) {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      studentId: true,
+      employeeCode: true,
+    },
+  });
+  if (!user) {
+    throw new ApiError(404, "User not found", "NOT_FOUND");
+  }
+
+  const temporaryPassword =
+    user.employeeCode ?? user.studentId ?? randomBytes(6).toString("hex");
+
+  const updated = await prisma.user.update({
+    where: { id },
+    data: { passwordHash: await hashPassword(temporaryPassword) },
+    select: publicUser,
+  });
+
+  return { user: updated, temporaryPassword };
+}
+
+// ============================================
+// 12. List Distinct Shop Codes (ตัวเลือก dropdown รหัสร้าน)
+// ============================================
+
+export async function listShopCodes() {
+  const rows = await prisma.user.findMany({
+    where: { shopCode: { not: null } },
+    select: { shopCode: true },
+    distinct: ["shopCode"],
+    orderBy: { shopCode: "asc" },
+  });
+  return rows
+    .map((row) => row.shopCode?.trim() ?? "")
+    .filter((code) => code.length > 0);
+}
+
+// ============================================
 // 8. Build User Filter
 // ============================================
 
@@ -198,6 +361,12 @@ export function buildUserFilter(input: {
     ...(input.query
       ? {
           OR: [
+            {
+              username: {
+                contains: input.query,
+                mode: "insensitive" as const,
+              },
+            },
             {
               firstName: {
                 contains: input.query,

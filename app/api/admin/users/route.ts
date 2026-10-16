@@ -1,7 +1,15 @@
 import { requireUser } from "@/lib/auth";
-import { handleError, json } from "@/lib/api";
-import { adminUsersQuerySchema, pagination } from "@/validators/api";
-import { buildUserFilter, listUsers } from "@/services/user.service";
+import { handleError, json, requireSameOrigin } from "@/lib/api";
+import {
+  adminUsersQuerySchema,
+  pagination,
+  userCreateSchema,
+} from "@/validators/api";
+import {
+  buildUserFilter,
+  createUserByAdmin,
+  listUsers,
+} from "@/services/user.service";
 
 export async function GET(request: Request) {
   try {
@@ -25,6 +33,17 @@ export async function GET(request: Request) {
         totalPages: Math.ceil(total / pageSize),
       },
     });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    requireSameOrigin(request);
+    await requireUser("ADMIN");
+    const input = userCreateSchema.parse(await request.json());
+    return json({ user: await createUserByAdmin(input) }, 201);
   } catch (error) {
     return handleError(error);
   }
