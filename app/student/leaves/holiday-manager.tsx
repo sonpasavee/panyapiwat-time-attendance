@@ -524,10 +524,10 @@ export default function HolidayManager({
                   </span>
                 </span>
                 {cancellingId === h.id ? (
-                  <span className="flex gap-2">
+                  <span className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row">
                     <button
                       type="button"
-                      className="btn btn-outline min-h-[44px]"
+                      className="btn btn-outline min-h-[44px] w-full min-[480px]:w-auto"
                       disabled={deleting}
                       onClick={() => setCancellingId(null)}
                     >
@@ -535,7 +535,7 @@ export default function HolidayManager({
                     </button>
                     <button
                       type="button"
-                      className="leaves-btn-danger-outline"
+                      className="leaves-btn-danger-outline w-full min-[480px]:w-auto"
                       disabled={deleting}
                       onClick={() => cancelHoliday(h.id)}
                     >
@@ -545,7 +545,7 @@ export default function HolidayManager({
                 ) : (
                   <button
                     type="button"
-                    className="leaves-btn-danger-outline"
+                    className="leaves-btn-danger-outline w-full min-[480px]:w-auto"
                     onClick={() => setCancellingId(h.id)}
                   >
                     ยกเลิกวันหยุด

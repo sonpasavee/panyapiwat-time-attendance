@@ -31,8 +31,8 @@ export default async function AdminImportPage() {
         <h2 id="fmt-h" className="m-0 text-[17px] font-semibold">รูปแบบไฟล์</h2>
         <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0 text-sm">
           {COLUMNS.map(([col, desc]) => (
-            <li key={col} className="flex items-center justify-between gap-2 rounded-xl bg-[#f8fafd] px-3.5 py-2.5">
-              <code className="font-mono text-[13px] font-semibold">{col}</code>
+            <li key={col} className="flex flex-col gap-1 rounded-xl bg-[#f8fafd] px-3.5 py-2.5 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between min-[420px]:gap-2">
+              <code className="font-mono text-[13px] font-semibold break-all">{col}</code>
               <span className="muted text-[13px]">{desc}</span>
             </li>
           ))}

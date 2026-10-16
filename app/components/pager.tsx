@@ -28,16 +28,16 @@ export default function Pager({
     `${pathname}?${new URLSearchParams({ ...params, page: String(target) })}`;
 
   const btn =
-    "btn btn-outline min-h-[36px] px-3.5 text-[13px]";
+    "btn btn-outline min-h-[44px] min-w-[44px] px-3.5 text-[13px]";
   const numActive =
-    "btn btn-primary min-h-[36px] min-w-[36px] px-0 text-[13px]";
+    "btn btn-primary min-h-[44px] min-w-[44px] px-0 text-[13px]";
   const numIdle =
-    "btn btn-outline min-h-[36px] min-w-[36px] px-0 text-[13px] font-normal";
+    "btn btn-outline min-h-[44px] min-w-[44px] px-0 text-[13px] font-normal";
 
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-[#edf1f7] px-6 py-3.5">
-      <span className="text-[13px] muted">{summary}</span>
-      <div className="flex items-center gap-1.5">
+    <div className="flex flex-col gap-2.5 border-t border-[#edf1f7] px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-6">
+      {summary && <span className="text-[13px] muted">{summary}</span>}
+      <div className="flex max-w-full items-center gap-1.5 overflow-x-auto pb-0.5">
         {page > 1 ? (
           <Link href={href(page - 1)} className={btn}>
             ก่อนหน้า

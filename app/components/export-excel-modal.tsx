@@ -191,7 +191,7 @@ export default function ExportExcelModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="export-title"
-            className="card w-full max-w-[560px] p-6 sm:p-8"
+            className="card max-h-[calc(100dvh-2rem)] w-full max-w-[560px] overflow-y-auto p-5 sm:p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -217,7 +217,7 @@ export default function ExportExcelModal({
             <div
               role="radiogroup"
               aria-label="ประเภทรางาน"
-              className="mt-2 grid grid-cols-3 gap-2 rounded-2xl bg-[#f1f5fb] p-2"
+              className="mt-2 grid grid-cols-1 gap-2 rounded-2xl bg-[#f1f5fb] p-2 min-[420px]:grid-cols-3"
             >
               {(
                 [
@@ -244,7 +244,7 @@ export default function ExportExcelModal({
             </div>
 
             <p className="field-label mt-5">ช่วงเวลา</p>
-            <div className="mt-2 grid grid-cols-2 gap-3">
+            <div className="mt-2 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
               <div className="input flex min-h-[44px] items-center text-[15px]">
                 {dailyLabel}
               </div>
@@ -255,7 +255,7 @@ export default function ExportExcelModal({
 
             <fieldset className="mt-5">
               <legend className="field-label">คอลัมน์ที่ต้องการ</legend>
-              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+              <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-3 min-[420px]:grid-cols-2">
                 {COLUMN_OPTIONS.map((opt) => (
                   <label
                     key={opt.id}
@@ -290,11 +290,11 @@ export default function ExportExcelModal({
               </div>
             </div>
 
-            <div className="mt-5 flex justify-end gap-3">
+            <div className="mt-5 flex flex-col-reverse gap-3 min-[420px]:flex-row min-[420px]:justify-end">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="btn btn-outline"
+                className="btn btn-outline w-full min-[420px]:w-auto"
               >
                 ยกเลิก
               </button>
@@ -302,7 +302,7 @@ export default function ExportExcelModal({
                 type="button"
                 onClick={handleDownload}
                 disabled={busy || columns.length === 0}
-                className="btn font-semibold text-white disabled:opacity-60"
+                className="btn w-full font-semibold text-white disabled:opacity-60 min-[420px]:w-auto"
                 style={{ background: "#0e7a3d" }}
               >
                 <DownloadIcon />

@@ -28,7 +28,7 @@ export default function WorkTimer({
   return (
     <p
       aria-live="off"
-      className="m-0 text-5xl font-bold leading-[1.15] tabular-nums"
+      className="m-0 mt-1 text-[clamp(2rem,9vw,3rem)] font-bold leading-[1.15] tabular-nums break-all"
     >
       {parts(now - new Date(checkInAt).getTime())}
     </p>

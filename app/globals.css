@@ -90,6 +90,12 @@ body {
   padding: 24px;
 }
 
+@media (max-width: 640px) {
+  .card-pad {
+    padding: 16px;
+  }
+}
+
 .muted {
   color: #5b6b82;
 }
@@ -229,6 +235,17 @@ body {
 .tbl td:last-child {
   padding-right: 24px;
 }
+
+@media (max-width: 640px) {
+  .tbl th:first-child,
+  .tbl td:first-child {
+    padding-left: 16px;
+  }
+  .tbl th:last-child,
+  .tbl td:last-child {
+    padding-right: 16px;
+  }
+}
 .tbl tbody tr {
   border-top: 1px solid #edf1f7;
 }
@@ -286,7 +303,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  min-width: 64px;
+  min-width: 56px;
   min-height: 52px;
   justify-content: center;
   border-radius: 12px;
@@ -294,10 +311,25 @@ body {
   font-size: 11px;
   font-weight: 500;
   text-decoration: none;
-  padding: 4px 8px;
+  padding: 4px 6px;
+  text-align: center;
+  line-height: 1.25;
 }
 .bottom-nav-link[aria-current="page"] {
   background: #eaf1ff;
   color: #1750b8;
   font-weight: 600;
+}
+
+/* ---------- responsive guards (ไม่แตะ design tokens) ---------- */
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 640px) {
+  .btn {
+    padding: 0 14px;
+  }
 }

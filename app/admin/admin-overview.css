@@ -310,3 +310,37 @@
   background: #1d63d8;
   border-radius: 999px;
 }
+
+@media (max-width: 640px) {
+  .ov-head h1 {
+    font-size: 24px;
+  }
+  .ov-head-actions {
+    width: 100%;
+  }
+  .ov-shopselect {
+    width: 100%;
+    max-width: 100%;
+  }
+  .ov-rate-value {
+    font-size: 34px;
+  }
+  .ov-todo {
+    flex-wrap: wrap;
+  }
+  .ov-shopbar {
+    grid-template-columns: 52px minmax(0, 1fr) 40px;
+    font-size: 12px;
+  }
+  .ov-money-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .ov-foot {
+    flex-wrap: wrap;
+    padding: 12px 16px 16px;
+  }
+  .ov-pill {
+    min-height: 44px;
+  }
+}

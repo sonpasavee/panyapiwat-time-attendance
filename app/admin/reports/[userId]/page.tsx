@@ -145,16 +145,16 @@ export default async function AdminUserReportPage({
       </Link>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="mr-auto flex items-center gap-4">
+        <div className="mr-auto flex min-w-0 flex-1 items-center gap-4 basis-52">
           <Avatar
             name={`${detail.user.firstName} ${detail.user.lastName}`}
             size={56}
           />
-          <div>
-            <h1 className="m-0 text-[24px] font-bold leading-snug">
+          <div className="min-w-0">
+            <h1 className="m-0 text-[20px] font-bold leading-snug break-words sm:text-[24px]">
               {detail.user.firstName} {detail.user.lastName}
             </h1>
-            <p className="muted m-0 text-sm">
+            <p className="muted m-0 break-words text-sm">
               {detail.user.studentId ?? detail.user.employeeCode ?? "–"}
               {detail.user.shopCode ? ` · ${detail.user.shopCode}` : ""}
             </p>
@@ -165,7 +165,7 @@ export default async function AdminUserReportPage({
           <Link
             href={monthHref(prev.month, prev.year)}
             aria-label="เดือนก่อนหน้า"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
           >
             <ChevronLeftIcon />
           </Link>
@@ -175,7 +175,7 @@ export default async function AdminUserReportPage({
           <Link
             href={monthHref(next.month, next.year)}
             aria-label="เดือนถัดไป"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
           >
             <ChevronRightIcon />
           </Link>
@@ -184,7 +184,7 @@ export default async function AdminUserReportPage({
         <ExportUserButton filename={fileName} rows={exportRows} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
         <ReportStat
           icon={<ClockIcon />}
           iconBg="#e3edff"

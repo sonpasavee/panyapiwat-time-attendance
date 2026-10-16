@@ -149,7 +149,7 @@ export default async function AdminFinanceDetailPage({
       </Link>
 
       <div className="fin-head">
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-4 basis-52">
           <span
             aria-hidden="true"
             className="flex h-14 w-14 flex-none items-center justify-center rounded-full text-xl font-bold"
@@ -157,11 +157,11 @@ export default async function AdminFinanceDetailPage({
           >
             {(user.firstName || "?").charAt(0)}
           </span>
-          <div>
-            <h1 className="m-0 text-[24px] font-bold leading-snug">
+          <div className="min-w-0">
+            <h1 className="m-0 text-[20px] font-bold leading-snug break-words sm:text-[24px]">
               {user.firstName} {user.lastName}
             </h1>
-            <p className="m-0 text-sm muted">
+            <p className="m-0 break-words text-sm muted">
               {user.studentId ?? "–"}
               {user.shopCode ? ` · ${user.shopCode}` : ""}
             </p>

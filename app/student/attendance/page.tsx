@@ -53,7 +53,7 @@ function MonthNavigator({
   const prev = month === 1 ? { month: 12, year: year - 1 } : { month: month - 1, year };
   const next = month === 12 ? { month: 1, year: year + 1 } : { month: month + 1, year };
   const arrow =
-    "flex h-9 w-9 items-center justify-center rounded-full bg-[#eaf1ff] text-[#1750b8] hover:bg-[#dbe8ff]";
+    "flex h-11 w-11 items-center justify-center rounded-full bg-[#eaf1ff] text-[#1750b8] hover:bg-[#dbe8ff]";
   return (
     <nav
       aria-label="เปลี่ยนเดือน"
@@ -102,9 +102,9 @@ function StatCard({
       >
         {icon}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="muted block text-[13px]">{label}</span>
-        <span className="block truncate text-[22px] font-bold leading-snug">{value}</span>
+        <span className="block text-[20px] font-bold leading-snug break-words tabular-nums sm:text-[22px]">{value}</span>
       </span>
     </div>
   );
@@ -191,7 +191,7 @@ export default async function StudentHistoryPage({
             {history.items.map((item) => (
               <li
                 key={item.id}
-                className="flex items-center gap-4 rounded-2xl border border-[#e3e9f2] bg-white p-4"
+                className="flex flex-col gap-4 rounded-2xl border border-[#e3e9f2] bg-white p-4 min-[480px]:flex-row min-[480px]:items-center"
               >
                 <span
                   aria-hidden="true"
@@ -233,8 +233,14 @@ export default async function StudentHistoryPage({
                     );
                   })()}
                 </span>
-                <span className="flex flex-none items-center gap-2.5">
-                  <span className="hidden text-right sm:block">
+                <span className="flex flex-none flex-wrap items-center gap-2.5">
+                  <span className="min-[480px]:hidden">
+                    <span className="muted block text-xs">เวลาทำงาน</span>
+                    <span className="block text-[15px] font-bold tabular-nums">
+                      {formatMinutes(item.workMinutes)}
+                    </span>
+                  </span>
+                  <span className="hidden text-right min-[480px]:block">
                     <span className="muted block text-xs">เวลาทำงาน</span>
                     <span className="block text-[15px] font-bold tabular-nums">
                       {formatMinutes(item.workMinutes)}

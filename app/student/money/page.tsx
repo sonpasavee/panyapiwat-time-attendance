@@ -51,7 +51,7 @@ function MonthNavigator({ month, year }: { month: number; year: number }) {
   const prev = month === 1 ? { month: 12, year: year - 1 } : { month: month - 1, year };
   const next = month === 12 ? { month: 1, year: year + 1 } : { month: month + 1, year };
   const arrow =
-    "flex h-9 w-9 items-center justify-center rounded-full bg-[#eaf1ff] text-[#1750b8] hover:bg-[#dbe8ff]";
+    "flex h-11 w-11 items-center justify-center rounded-full bg-[#eaf1ff] text-[#1750b8] hover:bg-[#dbe8ff]";
   return (
     <nav
       aria-label="เปลี่ยนเดือน"
@@ -102,12 +102,12 @@ function StatCard({
       >
         {icon}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="muted block text-[13px]">{label}</span>
-        <span className="block truncate text-[22px] font-bold leading-snug tabular-nums">
+        <span className="block text-[20px] font-bold leading-snug break-words tabular-nums sm:text-[22px]">
           {value}
         </span>
-        {sub && <span className="muted block text-[13px]">{sub}</span>}
+        {sub && <span className="muted block text-[13px] break-words">{sub}</span>}
       </span>
     </div>
   );
@@ -196,7 +196,7 @@ export default async function StudentMoneyPage({
                     </span>
                     <span className="muted mt-1 text-xs">{monthShort.format(date)}</span>
                   </span>
-                  <span className="min-w-[92px] flex-1">
+                  <span className="min-w-[92px] flex-1 basis-28">
                     <span className="block text-[15px] font-semibold">
                       {weekdayShort.format(date)}
                     </span>
@@ -210,7 +210,7 @@ export default async function StudentMoneyPage({
                       </span>
                     ) : null}
                   </span>
-                  <span className="flex flex-none items-start gap-5 text-right sm:gap-7">
+                  <span className="grid w-full flex-none grid-cols-3 gap-3 text-right min-[480px]:flex min-[480px]:w-auto min-[480px]:items-start min-[480px]:gap-5 sm:gap-7">
                     <span>
                       <span className="muted block text-xs">เอาเข้า</span>
                       <span className="mt-0.5 block text-[15px] font-bold tabular-nums">

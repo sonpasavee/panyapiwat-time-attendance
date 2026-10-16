@@ -52,9 +52,9 @@ function InfoCard({
       >
         {icon}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="muted block text-[13px]">{label}</span>
-        <span className="block truncate text-[22px] font-bold leading-snug">{value}</span>
+        <span className="block text-[20px] font-bold leading-snug break-words sm:text-[22px]">{value}</span>
       </span>
     </div>
   );
@@ -189,10 +189,10 @@ export default async function StudentCheckInPage() {
         <div className="relative flex items-center justify-between gap-6">
           <div className="min-w-0">
             <p className="m-0 text-[15px] text-white/90">{formatThaiHeader()}</p>
-            <p className="m-0 mt-2 text-[40px] font-bold leading-tight sm:text-[44px]">
+            <p className="m-0 mt-2 text-[clamp(1.75rem,7vw,2.75rem)] font-bold leading-tight break-words sm:text-[44px]">
               {heroTitle}
             </p>
-            <p className="m-0 mt-2 text-[15px] text-white/90">{heroSub}</p>
+            <p className="m-0 mt-2 text-[15px] text-white/90 break-words">{heroSub}</p>
           </div>
           <span
             aria-hidden="true"
@@ -247,7 +247,7 @@ export default async function StudentCheckInPage() {
         {/* รูปถ่าย */}
         <section aria-labelledby="photos-h" className="card card-pad">
           <h2 id="photos-h" className="m-0 text-[17px] font-semibold">รูปถ่ายยืนยัน</h2>
-          <div className="mt-5 flex gap-3.5">
+          <div className="mt-5 flex flex-col gap-3.5 min-[420px]:flex-row">
             <PhotoBox
               label="รูปเช็กอิน"
               name="เช็กอิน"

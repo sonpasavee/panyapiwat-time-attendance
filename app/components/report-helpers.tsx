@@ -167,18 +167,18 @@ export function ReportStat({
   value: ReactNode;
 }) {
   return (
-    <div className="card card-pad">
-      <div className="flex items-center gap-4">
+    <div className="card card-pad min-w-0">
+      <div className="flex items-center gap-3 sm:gap-4">
         <span
           aria-hidden="true"
-          className="inline-flex h-12 w-12 flex-none items-center justify-center rounded-2xl"
+          className="inline-flex h-11 w-11 flex-none items-center justify-center rounded-2xl sm:h-12 sm:w-12"
           style={{ background: iconBg, color: iconColor }}
         >
           {icon}
         </span>
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <span className="muted block text-[13px]">{label}</span>
-          <span className="block text-[22px] font-bold leading-snug">
+          <span className="block text-[clamp(1rem,4.5vw,1.375rem)] font-bold leading-snug break-words tabular-nums">
             {value}
           </span>
         </span>

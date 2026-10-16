@@ -168,7 +168,7 @@ export default async function StudentDashboardPage() {
                   </>
                 ) : checkedOut && today?.workMinutes != null ? (
                   <>
-                    <p className="m-0 mt-1 text-5xl font-bold leading-[1.15] tabular-nums">
+                    <p className="m-0 mt-1 text-[clamp(2rem,9vw,3rem)] font-bold leading-[1.15] tabular-nums break-all">
                       {String(Math.floor(today.workMinutes / 3600)).padStart(2, "0")}:
                       {String(Math.floor((today.workMinutes % 3600) / 60)).padStart(2, "0")}:
                       {String(Math.floor(((today.workMinutes % 3600) % 60))).padStart(2, "0")}
@@ -177,7 +177,7 @@ export default async function StudentDashboardPage() {
                   </>
                 ) : (
                   <>
-                    <p className="m-0 mt-1 text-5xl font-bold leading-[1.15] tabular-nums muted">00:00:00</p>
+                    <p className="m-0 mt-1 text-[clamp(2rem,9vw,3rem)] font-bold leading-[1.15] tabular-nums muted break-all">00:00:00</p>
                     <p className="mt-1.5 text-sm muted">เช็กอินเพื่อเริ่มนับเวลา</p>
                   </>
                 )}
@@ -288,7 +288,7 @@ export default async function StudentDashboardPage() {
 
         {/* RIGHT */}
         <div className="flex min-w-0 flex-col gap-5">
-          <div aria-label="สรุปเดือนนี้" className="grid grid-cols-2 gap-4">
+          <div aria-label="สรุปเดือนนี้" className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2">
             <StatCard
               icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>}
               iconBg="#dbeafe"

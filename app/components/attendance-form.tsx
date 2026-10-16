@@ -7,6 +7,33 @@ type AttendanceFormProps = {
   action: "check-in" | "check-out";
 };
 
+// โลโก้เงินสด: ธนบัตรสีเขียว (ตกแต่ง — label ของ input อ่านชื่อฟิลด์อยู่แล้ว)
+function CashLogo() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect x="2" y="8" width="28" height="16" rx="3" fill="#dcfce7" />
+      <rect x="2" y="8" width="28" height="16" rx="3" stroke="#16a34a" strokeWidth="1.6" />
+      <circle cx="16" cy="16" r="4.6" fill="#16a34a" />
+      <text x="16" y="19.4" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#ffffff" fontFamily="inherit">฿</text>
+    </svg>
+  );
+}
+
+// โลโก้ TrueMoney: ใช้รูปที่ import ไว้ใน public/ (ตกแต่ง — label ของ input อ่านชื่อฟิลด์อยู่แล้ว)
+function TrueMoneyLogo() {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/TrueMoneyWallet-Icon.png"
+      alt=""
+      aria-hidden="true"
+      width={26}
+      height={26}
+      className="flex-none rounded-full"
+    />
+  );
+}
+
 export default function AttendanceForm({ action }: AttendanceFormProps) {
   const router = useRouter();
   const [photoName, setPhotoName] = useState("");
@@ -100,9 +127,9 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
             <label htmlFor={`${action}-cashAmount`} className="field-label">
               {isCheckIn ? "เงินสดที่นำเข้า (บาท)" : "เงินสดคงเหลือ (บาท)"}
             </label>
-            <div className="flex h-[52px] items-center gap-2 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
-              <span aria-hidden="true" className="text-lg font-semibold muted">
-                ฿
+            <div className="flex h-[52px] items-center gap-2.5 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
+              <span aria-hidden="true" className="flex flex-none items-center">
+                <CashLogo />
               </span>
               <input
                 id={`${action}-cashAmount`}
@@ -120,9 +147,9 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
             <label htmlFor={`${action}-truemoneyAmount`} className="field-label">
               {isCheckIn ? "TrueMoney ที่นำเข้า (บาท)" : "TrueMoney คงเหลือ (บาท)"}
             </label>
-            <div className="flex h-[52px] items-center gap-2 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
-              <span aria-hidden="true" className="text-lg font-semibold muted">
-                ฿
+            <div className="flex h-[52px] items-center gap-2.5 rounded-xl border border-[#c3cfe0] bg-white px-3.5">
+              <span aria-hidden="true" className="flex flex-none items-center">
+                <TrueMoneyLogo />
               </span>
               <input
                 id={`${action}-truemoneyAmount`}

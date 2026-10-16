@@ -42,8 +42,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   background: #eaf1ff;
   color: #1750b8;
@@ -433,10 +433,52 @@
 }
 
 @media (max-width: 640px) {
+  .att-head h1 {
+    font-size: 24px;
+  }
+  .att-stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .att-stat {
+    min-width: 0;
+    padding: 14px 16px;
+  }
+  .att-stat-value {
+    font-size: 20px;
+  }
+  .att-filter {
+    padding: 14px 16px;
+  }
+  .att-search,
+  .att-field,
+  .att-shop,
+  .att-sort {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .att-submit {
+    width: 100%;
+  }
+  .att-submit .btn {
+    width: 100%;
+  }
+  .att-overlay {
+    padding: 24px 12px;
+  }
+  .att-modal-body {
+    padding: 22px 20px 16px;
+  }
+  .att-modal-foot {
+    padding: 14px 20px 20px;
+  }
   .att-check-grid {
     grid-template-columns: 1fr;
   }
   .att-money-grid {
     grid-template-columns: 1fr;
+  }
+  .att-workbox {
+    flex-wrap: wrap;
   }
 }

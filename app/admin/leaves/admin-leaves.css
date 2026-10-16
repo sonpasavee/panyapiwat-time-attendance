@@ -40,7 +40,7 @@
 .admin-leaves-view a {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 20px;
   border-radius: 999px;
   font-size: 14px;
@@ -71,8 +71,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   background: #eaf1ff;
   color: #1750b8;
@@ -452,7 +452,44 @@
 }
 
 @media (max-width: 640px) {
+  .admin-leaves-head h1 {
+    font-size: 24px;
+  }
+  .admin-leaves-stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .admin-leaves-stat {
+    min-width: 0;
+    padding: 16px;
+  }
+  .admin-leaves-stat-value {
+    font-size: 20px;
+  }
+  .admin-leaves-filter {
+    padding: 14px 16px;
+  }
+  .admin-leaves-search,
+  .admin-leaves-shop {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .admin-leaves-overlay {
+    padding: 24px 12px;
+  }
+  .admin-leaves-modal-body {
+    padding: 22px 20px 16px;
+  }
+  .admin-leaves-modal-foot {
+    padding: 14px 20px 20px;
+  }
   .admin-leaves-summary-grid {
     grid-template-columns: 1fr;
+  }
+  .admin-leaves-timeline-scroll {
+    padding: 16px 16px 8px;
+  }
+  .admin-leaves-legend {
+    padding: 12px 16px 20px;
   }
 }

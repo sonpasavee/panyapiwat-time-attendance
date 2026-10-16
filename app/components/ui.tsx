@@ -32,8 +32,8 @@ export function CardHeader({
   aside?: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-6 pt-5 pb-3.5">
-      <h2 id={id} className="m-0 text-[19px] font-semibold">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-5 pb-3.5 sm:px-6">
+      <h2 id={id} className="m-0 min-w-0 text-[17px] font-semibold break-words sm:text-[19px]">
         {title}
       </h2>
       {aside}
@@ -83,7 +83,7 @@ export function StatCard({
   sub?: ReactNode;
 }) {
   return (
-    <div className="card card-pad">
+    <div className="card card-pad min-w-0">
       <div
         aria-hidden="true"
         className="flex h-9 w-9 items-center justify-center rounded-[10px]"
@@ -92,8 +92,8 @@ export function StatCard({
         {icon}
       </div>
       <p className="mt-3 text-[13px] muted">{label}</p>
-      <p className="mt-0.5 text-[26px] font-bold leading-[1.25]">{value}</p>
-      {sub && <p className="m-0 text-xs muted">{sub}</p>}
+      <p className="mt-0.5 text-[clamp(1.15rem,5vw,1.625rem)] font-bold leading-[1.25] break-words tabular-nums">{value}</p>
+      {sub && <p className="m-0 text-xs muted break-words">{sub}</p>}
     </div>
   );
 }

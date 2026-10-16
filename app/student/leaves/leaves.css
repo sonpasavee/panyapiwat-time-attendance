@@ -313,6 +313,7 @@
 .leaves-holiday-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   padding: 14px 16px;
   border-radius: 16px;
@@ -366,7 +367,38 @@
 }
 
 @media (max-width: 640px) {
+  .leaves-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .leaves-tabs a {
+    padding: 0 16px;
+    white-space: nowrap;
+  }
   .leaves-type-grid {
     grid-template-columns: 1fr;
+  }
+  .leaves-cal-grid {
+    gap: 4px;
+  }
+  .leaves-cal-day {
+    min-height: 40px;
+    font-size: 14px;
+  }
+  .leaves-holiday-row {
+    padding: 12px;
+  }
+  .leaves-success {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .leaves-cal-day {
+    min-height: 38px;
+    font-size: 13px;
+  }
+  .leaves-cal-dow {
+    font-size: 11px;
   }
 }

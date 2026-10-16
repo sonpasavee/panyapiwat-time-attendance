@@ -170,7 +170,7 @@ export default async function AdminReportsPage({
             <Link
               href={dailyHref(addDaysISO(date, -1))}
               aria-label="วันก่อนหน้า"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
             >
               <ChevronLeftIcon />
             </Link>
@@ -178,7 +178,7 @@ export default async function AdminReportsPage({
             <Link
               href={dailyHref(addDaysISO(date, 1))}
               aria-label="วันถัดไป"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
             >
               <ChevronRightIcon />
             </Link>
@@ -188,7 +188,7 @@ export default async function AdminReportsPage({
             <Link
               href={monthlyHref(prevMonth.month, prevMonth.year)}
               aria-label="เดือนก่อนหน้า"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
             >
               <ChevronLeftIcon />
             </Link>
@@ -196,7 +196,7 @@ export default async function AdminReportsPage({
             <Link
               href={monthlyHref(nextMonth.month, nextMonth.year)}
               aria-label="เดือนถัดไป"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef3fa] text-[#33425b] no-underline"
             >
               <ChevronRightIcon />
             </Link>
@@ -216,7 +216,7 @@ export default async function AdminReportsPage({
       </div>
 
       {view === "daily" ? (
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
           <ReportStat
             icon={<PersonIcon />}
             iconBg="#e3edff"
@@ -247,7 +247,7 @@ export default async function AdminReportsPage({
           />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
           <ReportStat
             icon={<PersonIcon />}
             iconBg="#e3edff"
