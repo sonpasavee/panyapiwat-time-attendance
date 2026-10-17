@@ -61,11 +61,11 @@ export default function LoginForm({ role }: LoginFormProps) {
     role === "admin" ? "กรอกชื่อผู้ใช้หรือรหัสพนักงาน" : "กรอกรหัสนักศึกษา";
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
-      <div className="space-y-2">
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className="space-y-1.5">
         <label
           htmlFor="username"
-          className="block text-sm font-semibold text-white/90"
+          className="block text-sm font-semibold text-[#0f1f3a]"
         >
           {label}
         </label>
@@ -79,14 +79,14 @@ export default function LoginForm({ role }: LoginFormProps) {
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           placeholder={placeholder}
-          className="min-h-12 w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 text-base text-white outline-none placeholder:text-white/40 transition focus:border-blue-200 focus:ring-4 focus:ring-blue-200/15"
+          className="min-h-[52px] w-full rounded-full border border-[#d5deeb] bg-white px-4 text-sm text-[#0f1f3a] outline-none placeholder:text-[#8696ae] transition focus:border-[#1d63d8] focus:ring-4 focus:ring-[#1d63d8]/10"
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <label
           htmlFor="password"
-          className="block text-sm font-semibold text-white/90"
+          className="block text-sm font-semibold text-[#0f1f3a]"
         >
           รหัสผ่าน
         </label>
@@ -100,14 +100,14 @@ export default function LoginForm({ role }: LoginFormProps) {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           placeholder="กรอกรหัสผ่าน"
-          className="min-h-12 w-full rounded-xl border border-white/20 bg-[#082c54]/60 px-4 text-base text-white outline-none placeholder:text-white/40 transition focus:border-blue-200 focus:ring-4 focus:ring-blue-200/15"
+          className="min-h-[52px] w-full rounded-full border border-[#d5deeb] bg-white px-4 text-sm text-[#0f1f3a] outline-none placeholder:text-[#8696ae] transition focus:border-[#1d63d8] focus:ring-4 focus:ring-[#1d63d8]/10"
         />
       </div>
 
       {error && (
         <p
           role="alert"
-          className="rounded-xl border border-red-200/30 bg-red-400/10 px-4 py-3 text-sm leading-6 text-red-100"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
         >
           {error}
         </p>
@@ -115,7 +115,7 @@ export default function LoginForm({ role }: LoginFormProps) {
       {success && (
         <p
           role="status"
-          className="rounded-xl border border-emerald-200/30 bg-emerald-300/10 px-4 py-3 text-sm leading-6 text-emerald-100"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
         >
           {success}
         </p>
@@ -124,11 +124,11 @@ export default function LoginForm({ role }: LoginFormProps) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex min-h-12 w-full items-center justify-center rounded-xl bg-white px-5 text-base font-bold text-[#0b2f5c] shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition hover:bg-blue-50 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#ffd666] disabled:cursor-wait disabled:opacity-70"
+        className="mt-1 flex min-h-[52px] w-full items-center justify-center rounded-full bg-[#1d63d8] px-5 text-base font-bold text-white transition hover:bg-[#1750b8] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-[3px] focus-visible:outline-[#1d63d8] disabled:cursor-wait disabled:opacity-70"
       >
         {isSubmitting ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
       </button>
-      <p className="text-center text-xs leading-5 text-white/55">
+      <p className="text-center text-xs leading-5 text-[#5b6b82]">
         หากลืมชื่อผู้ใช้หรือรหัสผ่าน กรุณาติดต่อเจ้าหน้าที่ศูนย์การเรียน
       </p>
     </form>
