@@ -9,7 +9,7 @@ export default function StudentLayout({
   children: React.ReactNode;
 }) {
   return (
-    <DashboardShell brandSub="ปัญญาภิวัฒน์ขอนแก่น" items={studentNavItems}>
+    <DashboardShell brandSub="ระบบฝึกอาชีพ" items={studentNavItems}>
       {children}
     </DashboardShell>
   );

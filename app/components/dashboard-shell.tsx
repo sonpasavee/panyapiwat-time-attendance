@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import DashboardNav, { type NavItem } from "./dashboard-nav";
-import BrandLogo from "./brand-logo";
 import LogoutButton from "./logout-button";
 import {
   MobileUserLabel,
@@ -69,8 +68,8 @@ export const studentNavItems: NavItem[] = [
 
 export const adminNavItems: NavItem[] = [
   { href: "/admin", label: "ภาพรวม", icon: <GridIcon />, exact: true },
-  { href: "/admin/attendance", label: "การลงเวลา", icon: <ClockIcon /> },
-  { href: "/admin/reports", label: "รายงาน", icon: <ChartIcon /> },
+  { href: "/admin/attendance", label: "ตรวจสอบการลงเวลา", icon: <ClockIcon /> },
+  { href: "/admin/reports", label: "รายงานชั่วโมงทำงาน", icon: <ChartIcon /> },
   { href: "/admin/users", label: "นักศึกษา", icon: <UsersIcon /> },
   { href: "/admin/finance", label: "การเงิน", icon: <WalletIcon /> },
   { href: "/admin/leaves", label: "การลา", icon: <CalendarIcon /> },
@@ -92,15 +91,9 @@ export default function DashboardShell({
     <div className="min-h-screen">
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#e3e9f2] bg-white px-5 py-3 lg:hidden">
-        <div
-          aria-hidden="true"
-          className="flex h-9 items-center rounded-[10px] bg-[#1d63d8] px-2"
-        >
-          <BrandLogo className="h-auto w-[76px]" />
-        </div>
         <div className="min-w-0 flex-1">
           <p className="m-0 truncate text-[15px] font-bold leading-tight">
-            ระบบฝึกอาชีพ
+            ศูนย์การเรียนปัญญาภิวัฒน์ขอนแก่น
           </p>
           <p className="m-0 truncate text-xs muted">
             <Suspense fallback={<MobileUserLabelFallback />}>
@@ -114,17 +107,11 @@ export default function DashboardShell({
       <div className="flex w-full items-start">
         {/* Sidebar (desktop) */}
         <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col gap-7 overflow-y-auto border-r border-[#e3e9f2] bg-white px-4 py-6 lg:flex">
-          <div className="flex items-center gap-3 px-2">
-            <div
-              aria-hidden="true"
-              className="flex items-center rounded-xl bg-[#1d63d8] px-3 py-2"
-            >
-              <BrandLogo className="h-auto w-[112px]" />
-            </div>
-            <div>
-              <p className="m-0 text-base font-bold leading-snug">ระบบฝึกอาชีพ</p>
-              <p className="m-0 text-xs muted">{brandSub}</p>
-            </div>
+          <div className="px-2">
+            <p className="m-0 text-sm font-bold leading-6 text-[#0f1f3a]">
+              ศูนย์การเรียนปัญญาภิวัฒน์ขอนแก่น
+            </p>
+            <p className="m-0 text-xs muted">{brandSub}</p>
           </div>
 
           <DashboardNav items={items} />
