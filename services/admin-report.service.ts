@@ -1,5 +1,15 @@
-import { prisma } from "@/lib/db";
 import { monthRange } from "@/lib/time";
+import {
+  findReportStudent,
+  listActiveReportShopCodes,
+  listDailyReportAttendance,
+  listDailyReportLeaves,
+  listMonthlyReportAttendance,
+  listMonthlyReportLeaves,
+  listReportRoster,
+  listUserMonthlyDetailAttendance,
+  listUserMonthlyDetailLeaves,
+} from "@/repositories/admin-report.repository";
 import {
   amountToCents,
   centsToAmount,
@@ -76,31 +86,13 @@ function userWhere(filter: ReportUserFilter) {
   };
 }
 
-const userSelect = {
-  id: true,
-  firstName: true,
-  lastName: true,
-  studentId: true,
-  employeeCode: true,
-  shopCode: true,
-} as const;
-
 async function getRoster(filter: ReportUserFilter) {
-  return prisma.user.findMany({
-    where: userWhere(filter),
-    select: userSelect,
-    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-  });
+  return listReportRoster(userWhere(filter));
 }
 
 // รหัสร้านทั้งหมดของนักศึกษา active (ไว้ทำ dropdown ตัวกรอง)
 export function listActiveShopCodes() {
-  return prisma.user.findMany({
-    where: { role: "STUDENT", isActive: true, shopCode: { not: null } },
-    select: { shopCode: true },
-    distinct: ["shopCode"],
-    orderBy: { shopCode: "asc" },
-  });
+  return listActiveReportShopCodes();
 }
 
 function minutesBetween(checkInAt: Date, checkOutAt: Date) {
@@ -122,30 +114,10 @@ export async function getDailyReport(
   const [attendances, leaves] = await Promise.all([
     ids.length === 0
       ? []
-      : prisma.attendance.findMany({
-          where: { userId: { in: ids }, workDate },
-          select: {
-            userId: true,
-            checkInAt: true,
-            checkOutAt: true,
-            workMinutes: true,
-            checkInPhotoUrl: true,
-            checkOutPhotoUrl: true,
-            money: {
-              select: { moneyType: true, direction: true, amount: true },
-            },
-          },
-        }),
+      : listDailyReportAttendance(ids, workDate),
     ids.length === 0
       ? []
-      : prisma.leave.findMany({
-          where: {
-            userId: { in: ids },
-            startDate: { lte: workDate },
-            endDate: { gte: workDate },
-          },
-          select: { userId: true, type: true },
-        }),
+      : listDailyReportLeaves(ids, workDate),
   ]);
 
   const attendanceByUser = new Map(attendances.map((a) => [a.userId, a]));
@@ -208,25 +180,10 @@ export async function getMonthlyReportOverview(
   const [attendances, leaves] = await Promise.all([
     ids.length === 0
       ? []
-      : prisma.attendance.findMany({
-          where: { userId: { in: ids }, workDate: range },
-          select: {
-            userId: true,
-            checkInAt: true,
-            checkOutAt: true,
-            workMinutes: true,
-          },
-        }),
+      : listMonthlyReportAttendance(ids, range),
     ids.length === 0
       ? []
-      : prisma.leave.findMany({
-          where: {
-            userId: { in: ids },
-            startDate: { lt: range.lt },
-            endDate: { gte: range.gte },
-          },
-          select: { userId: true, startDate: true, endDate: true },
-        }),
+      : listMonthlyReportLeaves(ids, range),
   ]);
 
   const stats = new Map<
@@ -302,40 +259,15 @@ export async function getUserMonthlyDetail(
   month: number,
   year: number,
 ) {
-  const user = await prisma.user.findFirst({
-    where: { id: userId, role: "STUDENT" },
-    select: userSelect,
-  });
+  const user = await findReportStudent(userId);
   if (!user) return null;
 
   const range = monthRange(year, month);
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
   const [attendances, leaves] = await Promise.all([
-    prisma.attendance.findMany({
-      where: { userId, workDate: range },
-      select: {
-        workDate: true,
-        checkInAt: true,
-        checkOutAt: true,
-        workMinutes: true,
-        checkInPhotoUrl: true,
-        checkOutPhotoUrl: true,
-        money: {
-          select: { moneyType: true, direction: true, amount: true },
-        },
-      },
-      orderBy: { workDate: "asc" },
-    }),
-    prisma.leave.findMany({
-      where: {
-        userId,
-        startDate: { lt: range.lt },
-        endDate: { gte: range.gte },
-      },
-      select: { type: true, startDate: true, endDate: true },
-      orderBy: { startDate: "asc" },
-    }),
+    listUserMonthlyDetailAttendance(userId, range),
+    listUserMonthlyDetailLeaves(userId, range),
   ]);
 
   const byDate = new Map(

@@ -1,6 +1,9 @@
-import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import { hashPassword } from "@/lib/auth";
+import {
+  createImportedStudents,
+  listStudentUsersForImport,
+} from "@/repositories/user.repository";
 import type { StudentImportRow } from "@/validators/api";
 
 const HASH_CONCURRENCY = 4;
@@ -8,20 +11,7 @@ const HASH_CONCURRENCY = 4;
 export async function importStudents(rows: StudentImportRow[]) {
   const identifiers = rows.flatMap((row) => [row.studentId, row.employeeCode]);
 
-  const existingUsers = await prisma.user.findMany({
-    where: {
-      OR: [
-        { username: { in: identifiers } },
-        { studentId: { in: identifiers } },
-        { employeeCode: { in: identifiers } },
-      ],
-    },
-    select: {
-      username: true,
-      studentId: true,
-      employeeCode: true,
-    },
-  });
+  const existingUsers = await listStudentUsersForImport(identifiers);
 
   const existingIdentifiers = new Set(
     existingUsers.flatMap((user) =>
@@ -56,8 +46,8 @@ export async function importStudents(rows: StudentImportRow[]) {
     );
   }
 
-  await prisma.user.createMany({
-    data: rows.map((row, index) => ({
+  await createImportedStudents(
+    rows.map((row, index) => ({
       username: row.studentId,
       studentId: row.studentId,
       employeeCode: row.employeeCode,
@@ -69,7 +59,7 @@ export async function importStudents(rows: StudentImportRow[]) {
       passwordHash: passwordHashes[index],
       role: "STUDENT",
     })),
-  });
+  );
 
   return { importedCount: rows.length };
 }

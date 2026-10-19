@@ -1,24 +1,17 @@
 
-import { prisma } from "@/lib/db";
-
 import { monthRange } from "@/lib/time";
 import { summarizeShifts } from "@/services/monthly-report.logic";
+import {
+  listAdminMonthlyAttendance,
+  listMyMonthlyAttendance,
+} from "@/repositories/monthly-report.repository";
 
 export async function getMyMonthlySummary(
   userId: string,
   month: number,
   year: number,
 ) {
-  const rows = await prisma.attendance.findMany({
-    where: {
-      userId,
-      workDate: monthRange(year, month),
-    },
-    select: {
-      checkInAt: true,
-      checkOutAt: true,
-    },
-  });
+  const rows = await listMyMonthlyAttendance(userId, monthRange(year, month));
 
   return {
     month,
@@ -37,35 +30,10 @@ export async function getAdminMonthlyReport(
     userId?: string;
   },
 ) {
-  const rows = await prisma.attendance.findMany({
-    where: {
-      workDate: monthRange(year, month),
-      ...(filter.shopCode
-        ? {
-            user: {
-              shopCode: filter.shopCode,
-            },
-          }
-        : {}),
-      ...(filter.userId
-        ? {
-            userId: filter.userId,
-          }
-        : {}),
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          studentId: true,
-          employeeCode: true,
-          shopCode: true,
-        },
-      },
-    },
-  });
+  const rows = await listAdminMonthlyAttendance(
+    monthRange(year, month),
+    filter,
+  );
 
   const result = new Map<
     string,

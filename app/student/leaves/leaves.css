@@ -219,11 +219,23 @@
   cursor: pointer;
   text-align: left;
   font-family: inherit;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
 .leaves-type-card[aria-pressed="true"] {
   border-color: #1d63d8;
   background: #f4f8ff;
+  box-shadow: 0 0 0 2px rgba(29, 99, 216, 0.08);
+}
+
+.leaves-type-card:hover {
+  border-color: #9dbcf0;
+}
+
+.leaves-type-card:focus-visible,
+.leaves-reason-chip:focus-visible {
+  outline: 3px solid rgba(29, 99, 216, 0.28);
+  outline-offset: 2px;
 }
 
 .leaves-type-icon {
@@ -276,6 +288,15 @@
   background: #eaf1ff;
   color: #1750b8;
   font-weight: 600;
+}
+
+.leaves-reason-chip:hover {
+  border-color: #9dbcf0;
+  background: #f7faff;
+}
+
+.leaves-reason-chip[aria-pressed="true"]:hover {
+  background: #eaf1ff;
 }
 
 /* ปุ่มอันตรายแบบเส้น */

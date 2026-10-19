@@ -1,6 +1,11 @@
-import { prisma } from "@/lib/db";
-
 import { monthRange } from "@/lib/time";
+import {
+  listAdminMoneyEntries as listAdminMoneyEntriesRecord,
+  listMonthlyFinanceEntries,
+  listMyDailyMoneyAttendances,
+  listMyMoneyEntries,
+  sumAdminMoneyEntries as sumAdminMoneyEntriesRecord,
+} from "@/repositories/money-tracker.repository";
 import {
   amountToCents,
   centsToAmount,
@@ -48,35 +53,7 @@ export type FinanceDayRow = {
 // - ใช้ไปรวมนับเฉพาะวันที่ข้อมูลครบ (มีทั้ง IN และ OUT อย่างน้อยหนึ่งประเภท)
 // - ช่องที่เว้นว่างตอนกรอก = ไม่มีแถว สูตรถือเป็น 0
 export async function getMonthlyFinance(month: number, year: number) {
-  const entries = await prisma.moneyEntry.findMany({
-    where: {
-      attendance: {
-        user: { role: "STUDENT" },
-        workDate: monthRange(year, month),
-      },
-    },
-    select: {
-      attendanceId: true,
-      direction: true,
-      moneyType: true,
-      amount: true,
-      attendance: {
-        select: {
-          workDate: true,
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              studentId: true,
-              shopCode: true,
-            },
-          },
-        },
-      },
-    },
-    take: 20000,
-  });
+  const entries = await listMonthlyFinanceEntries(monthRange(year, month));
 
   // จับกลุ่มตาม attendance (1 วันของ 1 คน) แล้วสรุป IN−OUT
   const byAttendance = new Map<
@@ -218,24 +195,10 @@ export async function getMyMoneyReport(
   month: number,
   year: number,
 ) {
-  const entries = await prisma.moneyEntry.findMany({
-    where: {
-      attendance: {
-        userId,
-        workDate: monthRange(year, month),
-      },
-    },
-    include: {
-      attendance: {
-        select: {
-          workDate: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
+  const entries = await listMyMoneyEntries(
+    userId,
+    monthRange(year, month),
+  );
 
   const totals = summarizeMoneyEntries(entries);
 
@@ -269,19 +232,10 @@ export async function getMyDailyMoney(
   month: number,
   year: number,
 ) {
-  const attendances = await prisma.attendance.findMany({
-    where: {
-      userId,
-      workDate: monthRange(year, month),
-    },
-    select: {
-      workDate: true,
-      money: {
-        select: { moneyType: true, direction: true, amount: true },
-      },
-    },
-    orderBy: { workDate: "desc" },
-  });
+  const attendances = await listMyDailyMoneyAttendances(
+    userId,
+    monthRange(year, month),
+  );
 
   const days: DailyMoneyDay[] = attendances.map((att) => {
     const summary = summarizeDailyMoney(att.money);
@@ -325,53 +279,17 @@ export async function getMyDailyMoney(
 }
 
 export async function listAdminMoneyEntries(
-  where: object,
+  where: Parameters<typeof listAdminMoneyEntriesRecord>[0],
   skip: number,
   take: number,
 ) {
-  const [items, total] = await Promise.all([
-    prisma.moneyEntry.findMany({
-      where,
-      include: {
-        attendance: {
-          select: {
-            workDate: true,
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                studentId: true,
-                shopCode: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      skip,
-      take,
-    }),
-
-    prisma.moneyEntry.count({
-      where,
-    }),
-  ]);
-
-  return {
-    items,
-    total,
-  };
+  return listAdminMoneyEntriesRecord(where, skip, take);
 }
 
-export async function sumAdminMoneyEntries(where: object) {
-  const totals = await prisma.moneyEntry.groupBy({
-    by: ["direction"],
-    where,
-    _sum: { amount: true },
-  });
+export async function sumAdminMoneyEntries(
+  where: Parameters<typeof sumAdminMoneyEntriesRecord>[0],
+) {
+  const totals = await sumAdminMoneyEntriesRecord(where);
 
   return totals.map((row) => ({
     direction: row.direction,

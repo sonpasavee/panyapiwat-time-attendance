@@ -1,6 +1,18 @@
-import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import type { Prisma } from "@/app/generated/prisma/client";
+import {
+  checkoutAttendance,
+  countAttendance,
+  countMonthlyAttendanceDays as countMonthlyAttendanceDaysRecord,
+  createAttendance,
+  findAdminAttendanceById,
+  findAttendanceByIdAndUser,
+  findAttendanceByUserAndDate,
+  findAttendanceByUserAndDateWithMoney,
+  listAdminAttendance as listAdminAttendanceRecords,
+  listMyAttendance as listMyAttendanceRecords,
+  listUserAttendance as listUserAttendanceRecords,
+} from "@/repositories/attendance.repository";
 
 import { bangkokWorkDate } from "@/lib/time";
 import { hideExpiredAttendancePhotos } from "@/lib/attendance-image-retention";
@@ -64,25 +76,17 @@ export async function checkIn(
 
     const now = new Date();
 
-    return await prisma.$transaction((tx) =>
-      tx.attendance.create({
-        data: {
-          userId,
-          workDate: bangkokWorkDate(now),
-          checkInAt: now,
-          checkInPhotoUrl: image!.url,
-          checkInImagePublicId: image!.publicId,
-          checkInNote: input.note,
-
-          money: {
-            create: moneyRows("IN", input),
-          },
-        },
-        include: {
-          money: true,
-        },
-      }),
-    );
+    return await createAttendance({
+      userId,
+      workDate: bangkokWorkDate(now),
+      checkInAt: now,
+      checkInPhotoUrl: image!.url,
+      checkInImagePublicId: image!.publicId,
+      checkInNote: input.note,
+      money: {
+        create: moneyRows("IN", input),
+      },
+    });
   } catch (error) {
     if (image) {
       await deleteAttendanceImage(image.publicId).catch(() => undefined);
@@ -115,14 +119,7 @@ export async function checkOut(
   try {
     const workDate = bangkokWorkDate();
 
-    const existing = await prisma.attendance.findUnique({
-      where: {
-        userId_workDate: {
-          userId,
-          workDate,
-        },
-      },
-    });
+    const existing = await findAttendanceByUserAndDate(userId, workDate);
 
     if (!existing) {
       throw new ApiError(
@@ -157,47 +154,31 @@ export async function checkOut(
       `attendance/${userId}/check-out`,
     );
 
-    return await prisma.$transaction(async (tx) => {
-      const changed = await tx.attendance.updateMany({
-        where: {
-          id: existing.id,
-          checkOutAt: null,
-        },
-        data: {
-          checkOutAt: now,
-          checkOutPhotoUrl: image!.url,
-          checkOutImagePublicId: image!.publicId,
-          checkOutNote: input.note,
-          workMinutes: Math.floor(
-            (now.getTime() - existing.checkInAt.getTime()) / 60000,
-          ),
-        },
-      });
-
-      if (changed.count !== 1) {
-        throw new ApiError(
-          409,
-          "Already checked out today",
-          "ALREADY_CHECKED_OUT",
-        );
-      }
-
-      await tx.moneyEntry.createMany({
-        data: moneyRows("OUT", input).map((row) => ({
-          attendanceId: existing.id,
+    const attendance = await checkoutAttendance(
+      existing.id,
+      {
+        checkOutAt: now,
+        checkOutPhotoUrl: image.url,
+        checkOutImagePublicId: image.publicId,
+        checkOutNote: input.note,
+        workMinutes: Math.floor(
+          (now.getTime() - existing.checkInAt.getTime()) / 60000,
+        ),
+      },
+      (attendanceId) =>
+        moneyRows("OUT", input).map((row) => ({
+          attendanceId,
           ...row,
         })),
-      });
-
-      return tx.attendance.findUniqueOrThrow({
-        where: {
-          id: existing.id,
-        },
-        include: {
-          money: true,
-        },
-      });
-    });
+    );
+    if (!attendance) {
+      throw new ApiError(
+        409,
+        "Already checked out today",
+        "ALREADY_CHECKED_OUT",
+      );
+    }
+    return attendance;
   } catch (error) {
     if (image) {
       await deleteAttendanceImage(image.publicId).catch(() => undefined);
@@ -223,30 +204,15 @@ export async function listMyAttendance(
   skip: number,
   take: number,
 ) {
-  const [items, total] = await Promise.all([
-    prisma.attendance.findMany({
-      where,
-      include: {
-        money: true,
-      },
-      orderBy: {
-        workDate: "desc",
-      },
-      skip,
-      take,
-    }),
-
-    prisma.attendance.count({
-      where: {
-        userId,
-        ...(where.workDate
-          ? {
-              workDate: where.workDate,
-            }
-          : {}),
-      },
-    }),
-  ]);
+  const { items, total } = await listMyAttendanceRecords(
+    where,
+    {
+      userId,
+      ...(where.workDate ? { workDate: where.workDate } : {}),
+    },
+    skip,
+    take,
+  );
 
   return {
     items: items.map((item) => hideExpiredAttendancePhotos(item)),
@@ -259,17 +225,10 @@ export async function listMyAttendance(
 // ========================================
 
 export async function getTodayAttendance(userId: string) {
-  const attendance = await prisma.attendance.findUnique({
-    where: {
-      userId_workDate: {
-        userId,
-        workDate: bangkokWorkDate(),
-      },
-    },
-    include: {
-      money: true,
-    },
-  });
+  const attendance = await findAttendanceByUserAndDateWithMoney(
+    userId,
+    bangkokWorkDate(),
+  );
   return attendance ? hideExpiredAttendancePhotos(attendance) : null;
 }
 
@@ -278,15 +237,7 @@ export async function getTodayAttendance(userId: string) {
 // ========================================
 
 export async function getMyAttendanceById(userId: string, id: string) {
-  const attendance = await prisma.attendance.findFirst({
-    where: {
-      id,
-      userId,
-    },
-    include: {
-      money: true,
-    },
-  });
+  const attendance = await findAttendanceByIdAndUser(id, userId);
   return attendance ? hideExpiredAttendancePhotos(attendance) : null;
 }
 
@@ -300,31 +251,12 @@ export async function listAdminAttendance(
   take: number,
   sort: "asc" | "desc" = "desc",
 ) {
-  const [items, total] = await Promise.all([
-    prisma.attendance.findMany({
-      where,
-      include: {
-        money: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            studentId: true,
-            employeeCode: true,
-            shopCode: true,
-          },
-        },
-      },
-      orderBy: [{ workDate: sort }, { id: sort }],
-      skip,
-      take,
-    }),
-
-    prisma.attendance.count({
-      where,
-    }),
-  ]);
+  const { items, total } = await listAdminAttendanceRecords(
+    where,
+    skip,
+    take,
+    sort,
+  );
 
   return {
     items: items.map((item) => hideExpiredAttendancePhotos(item)),
@@ -336,20 +268,14 @@ export async function getAdminAttendanceStats(
   where: Prisma.AttendanceWhereInput,
   today: Date,
 ) {
-  const andWhere = (...conditions: Prisma.AttendanceWhereInput[]) => ({
-    AND: [where, ...conditions],
-  });
-
   const [total, complete, working, missed] = await Promise.all([
-    prisma.attendance.count({ where }),
-    prisma.attendance.count({
-      where: andWhere({ checkOutAt: { not: null } }),
+    countAttendance(where),
+    countAttendance({ AND: [where, { checkOutAt: { not: null } }] }),
+    countAttendance({
+      AND: [where, { checkOutAt: null }, { workDate: { gte: today } }],
     }),
-    prisma.attendance.count({
-      where: andWhere({ checkOutAt: null }, { workDate: { gte: today } }),
-    }),
-    prisma.attendance.count({
-      where: andWhere({ checkOutAt: null }, { workDate: { lt: today } }),
+    countAttendance({
+      AND: [where, { checkOutAt: null }, { workDate: { lt: today } }],
     }),
   ]);
 
@@ -359,14 +285,7 @@ export async function getAdminAttendanceStats(
 export function countMonthlyAttendanceDays(
   range: { gte: Date; lt: Date },
 ) {
-  return prisma.attendance.groupBy({
-    by: ["userId"],
-    where: {
-      workDate: range,
-      user: { role: "STUDENT", isActive: true },
-    },
-    _count: { _all: true },
-  });
+  return countMonthlyAttendanceDaysRecord(range);
 }
 
 // ========================================
@@ -374,24 +293,7 @@ export function countMonthlyAttendanceDays(
 // ========================================
 
 export async function getAdminAttendanceById(id: string) {
-  const attendance = await prisma.attendance.findUnique({
-    where: {
-      id,
-    },
-    include: {
-      money: true,
-      user: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          studentId: true,
-          employeeCode: true,
-          shopCode: true,
-        },
-      },
-    },
-  });
+  const attendance = await findAdminAttendanceById(id);
   return attendance ? hideExpiredAttendancePhotos(attendance) : null;
 }
 
@@ -404,27 +306,11 @@ export async function listUserAttendance(
   skip: number,
   take: number,
 ) {
-  const [items, total] = await Promise.all([
-    prisma.attendance.findMany({
-      where: {
-        userId,
-      },
-      include: {
-        money: true,
-      },
-      orderBy: {
-        workDate: "desc",
-      },
-      skip,
-      take,
-    }),
-
-    prisma.attendance.count({
-      where: {
-        userId,
-      },
-    }),
-  ]);
+  const { items, total } = await listUserAttendanceRecords(
+    userId,
+    skip,
+    take,
+  );
 
   return {
     items: items.map((item) => hideExpiredAttendancePhotos(item)),

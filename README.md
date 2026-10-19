@@ -256,8 +256,8 @@ lib/
 prisma/
   schema.prisma                  database schema
   migrations/                    migration history
-repositories/                    query helper เฉพาะที่แยก repository แล้ว
-services/                        business logic และการเข้าถึงข้อมูลปัจจุบัน
+repositories/                    Prisma queries และ persistence operations แยกตามโดเมน
+services/                        business rules, calculations และ orchestration
 validators/                      Zod schemas และ query validators
 tests/                           unit tests
 ```
@@ -266,12 +266,12 @@ tests/                           unit tests
 
 - **Route Handler (`app/api/**/route.ts`):** อ่าน request, ตรวจ origin สำหรับ mutation, ตรวจ session/role, parse input ด้วย Zod แล้วเรียก service; อย่าวาง business rule ไว้ใน route
 - **Page (`app/**/page.tsx`):** ตรวจ role ผ่าน `requireAdminPage()`/`requireStudentPage()` ก่อนแสดงข้อมูล เรียก service ฝั่ง server สำหรับหน้าที่ต้องอ่านฐานข้อมูล
-- **Service (`services/`):** วางกฎธุรกิจ การคำนวณ และ transaction รวมถึงงานเชื่อมต่อกับบริการภายนอกตามความรับผิดชอบ
-- **Repository:** query บางชุดที่แยกไว้ใช้ `repositories/`; ส่วน query เดิมจำนวนมากยังอยู่ใน service ดังนั้นให้ทำตามรูปแบบใกล้เคียงในบริเวณที่แก้ ไม่ย้ายทั้งระบบโดยไม่ได้รับมอบหมาย
+- **Service (`services/`):** วางกฎธุรกิจ การคำนวณ และ orchestration ของ use case; กำหนดเงื่อนไขและลำดับของ transaction โดยเรียก persistence operations ผ่าน repository
+- **Repository (`repositories/`):** เป็นจุดเดียวสำหรับ Prisma queries และ transaction persistence; รับ/คืนข้อมูล ไม่รู้จัก HTTP หรือ `ApiError`
 - **Validation (`validators/api.ts`):** ใช้ Zod ตรวจ request และ query; อย่าพึ่ง client-side validation อย่างเดียว
 - **Shared code:** ใช้ `lib/auth.ts`, `lib/api.ts`, `lib/time.ts` และ logic/service เดิมก่อนสร้าง helper ซ้ำ
 - **UI:** รักษา responsive layout, semantic `<button>`/`<a>`, label ที่ผูกกับ input, focus ring และมาตรฐานสี/spacing ของระบบ
-- **Database:** query ผ่าน Prisma Client ที่ `lib/db.ts` เตรียมไว้; อย่าสร้าง client แยกต่อ request
+- **Database:** service และ route ห้าม query Prisma โดยตรง; repository ใช้ Prisma Client ที่ `lib/db.ts` เตรียมไว้ และห้ามสร้าง client แยกต่อ request
 - **ข้อกำหนด API:** รักษา path, access control, request/response format และกฎธุรกิจเดิมไว้เมื่อเพิ่มฟีเจอร์ หากเอกสารกับ implementation ไม่ตรง ให้ตรวจ route และถามผู้ดูแลก่อนเปลี่ยน contract
 
 ## เส้นทางหน้าเว็บ

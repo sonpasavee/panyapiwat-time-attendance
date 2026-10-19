@@ -1,38 +1,36 @@
 
-import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import { hashPassword } from "@/lib/auth";
 import { randomBytes } from "node:crypto";
+import {
+  countUserAttendance,
+  countUserLeaves,
+  createUserByAdmin as createUserRecord,
+  deleteUser,
+  deleteUserSessions,
+  findConflictingUserIdentifiers,
+  findUserById,
+  findUserProfile as findUserProfileRecord,
+  findUserForDeletion,
+  findUserForPasswordReset,
+  listDistinctShopCodes,
+  listUsers as listUserRecords,
+  updatePasswordAndRevokeSessions,
+  updateUserProfile as updateUserProfileRecord,
+  withSerializableAdminUserTransaction,
+  type AdminUserUpdateInput,
+} from "@/repositories/user.repository";
 
 // ============================================
 // 1. Public User Fields
 // ============================================
-
-const publicUser = {
-  id: true,
-  username: true,
-  role: true,
-  firstName: true,
-  lastName: true,
-  studentId: true,
-  employeeCode: true,
-  shopCode: true,
-  gradeLevel: true,
-  yearLevel: true,
-  isActive: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
 
 // ============================================
 // 2. Get User Profile
 // ============================================
 
 export function getUserProfile(id: string) {
-  return prisma.user.findUniqueOrThrow({
-    where: { id },
-    select: publicUser,
-  });
+  return findUserProfileRecord(id);
 }
 
 // ============================================
@@ -48,16 +46,7 @@ export function updateUserProfile(
     shopCode?: string | null;
   },
 ) {
-  return prisma.user.update({
-    where: { id },
-
-    data: {
-      ...input,
-      yearLevel: input.gradeLevel,
-    },
-
-    select: publicUser,
-  });
+  return updateUserProfileRecord(id, input);
 }
 
 // ============================================
@@ -65,30 +54,11 @@ export function updateUserProfile(
 // ============================================
 
 export async function listUsers(
-  where: object,
+  where: Parameters<typeof listUserRecords>[0],
   skip: number,
   take: number,
 ) {
-  const [items, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: publicUser,
-      orderBy: {
-        firstName: "asc",
-      },
-      skip,
-      take,
-    }),
-
-    prisma.user.count({
-      where,
-    }),
-  ]);
-
-  return {
-    items,
-    total,
-  };
+  return listUserRecords(where, skip, take);
 }
 
 // ============================================
@@ -96,10 +66,7 @@ export async function listUsers(
 // ============================================
 
 export async function getUserById(id: string) {
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: publicUser,
-  });
+  const user = await findUserById(id);
 
   if (!user) {
     throw new ApiError(
@@ -118,26 +85,14 @@ export async function getUserById(id: string) {
 
 export async function updateUserByAdmin(
   id: string,
-  input: {
-    firstName?: string;
-    lastName?: string;
-    gradeLevel?: number | null;
-    shopCode?: string | null;
-    employeeCode?: string | null;
-    studentId?: string | null;
-    isActive?: boolean;
-    role?: "ADMIN" | "STUDENT";
-  },
+  input: AdminUserUpdateInput,
   actorId: string,
 ) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      return await prisma.$transaction(
-        async (tx) => {
-          const target = await tx.user.findUnique({
-            where: { id },
-            select: { id: true, role: true, isActive: true },
-          });
+      return await withSerializableAdminUserTransaction(
+        async ({ findTarget, countOtherActiveAdmins, updateTarget }) => {
+          const target = await findTarget(id);
 
           if (!target) {
             throw new ApiError(404, "User not found", "NOT_FOUND");
@@ -167,13 +122,7 @@ export async function updateUserByAdmin(
             (nextRole !== "ADMIN" || !nextIsActive);
 
           if (removesActiveAdmin) {
-            const otherActiveAdmins = await tx.user.count({
-              where: {
-                id: { not: id },
-                role: "ADMIN",
-                isActive: true,
-              },
-            });
+            const otherActiveAdmins = await countOtherActiveAdmins(id);
 
             if (otherActiveAdmins === 0) {
               throw new ApiError(
@@ -184,16 +133,8 @@ export async function updateUserByAdmin(
             }
           }
 
-          return tx.user.update({
-            where: { id },
-            data: {
-              ...input,
-              yearLevel: input.gradeLevel,
-            },
-            select: publicUser,
-          });
+          return updateTarget(id, input);
         },
-        { isolationLevel: "Serializable" },
       );
     } catch (error) {
       const isSerializationConflict =
@@ -271,16 +212,7 @@ export async function createUserByAdmin(input: {
   const identifiers = [username, studentId, employeeCode].filter(
     (value): value is string => value !== null,
   );
-  const conflicting = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { username: { in: identifiers } },
-        { studentId: { in: identifiers } },
-        { employeeCode: { in: identifiers } },
-      ],
-    },
-    select: { id: true },
-  });
+  const conflicting = await findConflictingUserIdentifiers(identifiers);
   if (conflicting) {
     throw new ApiError(
       409,
@@ -291,21 +223,18 @@ export async function createUserByAdmin(input: {
 
   const initialPassword = employeeCode ?? studentId!;
 
-  return prisma.user.create({
-    data: {
-      username,
-      studentId,
-      employeeCode,
-      firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      shopCode: input.shopCode?.trim() || null,
-      gradeLevel: input.gradeLevel ?? null,
-      yearLevel: input.gradeLevel ?? null,
-      passwordHash: await hashPassword(initialPassword),
-      role,
-      isActive: input.isActive ?? true,
-    },
-    select: publicUser,
+  return createUserRecord({
+    username,
+    studentId,
+    employeeCode,
+    firstName: input.firstName.trim(),
+    lastName: input.lastName.trim(),
+    shopCode: input.shopCode?.trim() || null,
+    gradeLevel: input.gradeLevel ?? null,
+    yearLevel: input.gradeLevel ?? null,
+    passwordHash: await hashPassword(initialPassword),
+    role,
+    isActive: input.isActive ?? true,
   });
 }
 
@@ -322,17 +251,14 @@ export async function deleteUserByAdmin(id: string, actorId: string) {
     );
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { id },
-    select: { id: true, role: true },
-  });
+  const existing = await findUserForDeletion(id);
   if (!existing) {
     throw new ApiError(404, "User not found", "NOT_FOUND");
   }
 
   const [attendanceCount, leaveCount] = await Promise.all([
-    prisma.attendance.count({ where: { userId: id } }),
-    prisma.leave.count({ where: { userId: id } }),
+    countUserAttendance(id),
+    countUserLeaves(id),
   ]);
   if (attendanceCount > 0 || leaveCount > 0) {
     throw new ApiError(
@@ -342,8 +268,8 @@ export async function deleteUserByAdmin(id: string, actorId: string) {
     );
   }
 
-  await prisma.session.deleteMany({ where: { userId: id } });
-  await prisma.user.delete({ where: { id } });
+  await deleteUserSessions(id);
+  await deleteUser(id);
 
   return { id, deleted: true };
 }
@@ -354,14 +280,7 @@ export async function deleteUserByAdmin(id: string, actorId: string) {
 // ============================================
 
 export async function resetUserPassword(id: string) {
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      studentId: true,
-      employeeCode: true,
-    },
-  });
+  const user = await findUserForPasswordReset(id);
   if (!user) {
     throw new ApiError(404, "User not found", "NOT_FOUND");
   }
@@ -370,15 +289,7 @@ export async function resetUserPassword(id: string) {
     user.employeeCode ?? user.studentId ?? randomBytes(6).toString("hex");
 
   const passwordHash = await hashPassword(temporaryPassword);
-  const updated = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.update({
-      where: { id },
-      data: { passwordHash },
-      select: publicUser,
-    });
-    await tx.session.deleteMany({ where: { userId: id } });
-    return user;
-  });
+  const updated = await updatePasswordAndRevokeSessions(id, passwordHash);
 
   return { user: updated, temporaryPassword };
 }
@@ -388,12 +299,7 @@ export async function resetUserPassword(id: string) {
 // ============================================
 
 export async function listShopCodes() {
-  const rows = await prisma.user.findMany({
-    where: { shopCode: { not: null } },
-    select: { shopCode: true },
-    distinct: ["shopCode"],
-    orderBy: { shopCode: "asc" },
-  });
+  const rows = await listDistinctShopCodes();
   return rows
     .map((row) => row.shopCode?.trim() ?? "")
     .filter((code) => code.length > 0);

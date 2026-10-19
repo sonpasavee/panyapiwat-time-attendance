@@ -11,8 +11,16 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import argon2 from "argon2";
 
-import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
+import {
+  createSession as createSessionRecord,
+  deleteLoginAttempt,
+  deleteSession,
+  findLoginAttempt,
+  findSession,
+  updateLoginAttempt,
+  upsertLoginAttempt,
+} from "@/repositories/auth.repository";
 
 const scrypt = promisify(scryptCallback);
 
@@ -75,11 +83,7 @@ function loginKey(identifier: string) {
 export async function assertLoginAllowed(
   identifier: string,
 ) {
-  const attempt = await prisma.loginAttempt.findUnique({
-    where: {
-      key: loginKey(identifier),
-    },
-  });
+  const attempt = await findLoginAttempt(loginKey(identifier));
 
   if (
     attempt &&
@@ -101,45 +105,23 @@ export async function recordLoginFailure(
   const key = loginKey(identifier);
   const now = new Date();
 
-  const existing = await prisma.loginAttempt.findUnique({
-    where: { key },
-  });
+  const existing = await findLoginAttempt(key);
 
   if (
     existing &&
     now.getTime() - existing.windowStartedAt.getTime() >=
       15 * 60 * 1000
   ) {
-    await prisma.loginAttempt.update({
-      where: { key },
-      data: {
-        count: 1,
-        windowStartedAt: now,
-      },
-    });
+    await updateLoginAttempt(key, { count: 1, windowStartedAt: now });
   } else {
-    await prisma.loginAttempt.upsert({
-      where: { key },
-      create: {
-        key,
-        count: 1,
-        windowStartedAt: now,
-      },
-      update: {
-        count: { increment: 1 },
-      },
-    });
+    await upsertLoginAttempt(key, now);
   }
 }
 
 export async function clearLoginFailures(
   identifier: string,
 ) {
-  await prisma.loginAttempt.deleteMany({
-    where: {
-      key: loginKey(identifier),
-    },
-  });
+  await deleteLoginAttempt(loginKey(identifier));
 }
 
 export async function setSession(userId: string) {
@@ -149,13 +131,7 @@ export async function setSession(userId: string) {
     Date.now() + MAX_AGE * 1000,
   );
 
-  await prisma.session.create({
-    data: {
-      tokenHash: tokenHash(token),
-      userId,
-      expiresAt,
-    },
-  });
+  await createSessionRecord(tokenHash(token), userId, expiresAt);
 
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
@@ -171,11 +147,7 @@ export async function clearSession() {
   const token = jar.get(COOKIE)?.value;
 
   if (token) {
-    await prisma.session.deleteMany({
-      where: {
-        tokenHash: tokenHash(token),
-      },
-    });
+    await deleteSession(tokenHash(token));
   }
 
   jar.delete(COOKIE);
@@ -194,22 +166,7 @@ export async function currentUser() {
     return null;
   }
 
-  const session = await prisma.session.findUnique({
-    where: {
-      tokenHash: tokenHash(token),
-    },
-    select: {
-      userId: true,
-      expiresAt: true,
-      user: {
-        select: {
-          id: true,
-          role: true,
-          isActive: true,
-        },
-      },
-    },
-  });
+  const session = await findSession(tokenHash(token));
 
   if (
     !session ||

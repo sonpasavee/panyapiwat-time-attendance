@@ -189,8 +189,8 @@ export default function LeaveManager({
       )}
 
       {showForm ? (
-        <div className="grid items-start gap-5 lg:grid-cols-2">
-          <section aria-labelledby="form-h" className="card card-pad">
+        <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)] xl:gap-6">
+          <section aria-labelledby="form-h" className="card card-pad min-w-0">
             <h2 id="form-h" className="m-0 text-[19px] font-semibold">
               แจ้งลา
             </h2>
@@ -335,7 +335,7 @@ export default function LeaveManager({
             </p>
           </section>
 
-          <section aria-label="ประวัติการลา" className="card card-pad">
+          <section aria-label="ประวัติการลา" className="card card-pad min-w-0">
             <h2 className="m-0 text-[19px] font-semibold">
               ประวัติการลา ({leaves.length} รายการ)
             </h2>
