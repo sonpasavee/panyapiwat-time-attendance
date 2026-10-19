@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
+import type { Prisma } from "@/app/generated/prisma/client";
 
 import { bangkokWorkDate } from "@/lib/time";
 import { hideExpiredAttendancePhotos } from "@/lib/attendance-image-retention";
@@ -294,7 +295,7 @@ export async function getMyAttendanceById(userId: string, id: string) {
 // ========================================
 
 export async function listAdminAttendance(
-  where: object,
+  where: Prisma.AttendanceWhereInput,
   skip: number,
   take: number,
   sort: "asc" | "desc" = "desc",
@@ -315,9 +316,7 @@ export async function listAdminAttendance(
           },
         },
       },
-      orderBy: {
-        workDate: sort,
-      },
+      orderBy: [{ workDate: sort }, { id: sort }],
       skip,
       take,
     }),
@@ -331,6 +330,43 @@ export async function listAdminAttendance(
     items: items.map((item) => hideExpiredAttendancePhotos(item)),
     total,
   };
+}
+
+export async function getAdminAttendanceStats(
+  where: Prisma.AttendanceWhereInput,
+  today: Date,
+) {
+  const andWhere = (...conditions: Prisma.AttendanceWhereInput[]) => ({
+    AND: [where, ...conditions],
+  });
+
+  const [total, complete, working, missed] = await Promise.all([
+    prisma.attendance.count({ where }),
+    prisma.attendance.count({
+      where: andWhere({ checkOutAt: { not: null } }),
+    }),
+    prisma.attendance.count({
+      where: andWhere({ checkOutAt: null }, { workDate: { gte: today } }),
+    }),
+    prisma.attendance.count({
+      where: andWhere({ checkOutAt: null }, { workDate: { lt: today } }),
+    }),
+  ]);
+
+  return { total, complete, working, missed };
+}
+
+export function countMonthlyAttendanceDays(
+  range: { gte: Date; lt: Date },
+) {
+  return prisma.attendance.groupBy({
+    by: ["userId"],
+    where: {
+      workDate: range,
+      user: { role: "STUDENT", isActive: true },
+    },
+    _count: { _all: true },
+  });
 }
 
 // ========================================
@@ -407,67 +443,51 @@ export function buildAdminAttendanceFilter(input: {
     lt: Date;
   };
   shopCode?: string;
-  status?: string;
+  status?: "checked-in" | "checked-out" | "complete" | "working" | "missed";
+  today?: Date;
   query?: string;
-}) {
-  return {
-    ...(input.date
-      ? {
-          workDate: new Date(`${input.date}T00:00:00.000Z`),
-        }
-      : input.monthRange
-        ? {
-            workDate: input.monthRange,
-          }
-        : {}),
+}): Prisma.AttendanceWhereInput {
+  const conditions: Prisma.AttendanceWhereInput[] = [];
 
-    ...(input.status === "checked-in"
-      ? {
-          checkOutAt: null,
-        }
-      : input.status === "checked-out"
-        ? {
-            checkOutAt: {
-              not: null,
-            },
-          }
-        : {}),
+  if (input.date) {
+    conditions.push({
+      workDate: new Date(`${input.date}T00:00:00.000Z`),
+    });
+  } else if (input.monthRange) {
+    conditions.push({ workDate: input.monthRange });
+  }
 
-    user: {
-      ...(input.shopCode
-        ? {
-            shopCode: input.shopCode,
-          }
-        : {}),
+  if (input.status === "checked-in") {
+    conditions.push({ checkOutAt: null });
+  } else if (input.status === "checked-out" || input.status === "complete") {
+    conditions.push({ checkOutAt: { not: null } });
+  } else if (input.status === "working") {
+    conditions.push({ checkOutAt: null });
+    if (input.today) conditions.push({ workDate: { gte: input.today } });
+  } else if (input.status === "missed") {
+    conditions.push({ checkOutAt: null });
+    if (input.today) conditions.push({ workDate: { lt: input.today } });
+  }
 
+  const userFilter: Prisma.UserScalarRelationFilter = {
+    is: {
+      ...(input.shopCode ? { shopCode: input.shopCode } : {}),
       ...(input.query
         ? {
             OR: [
-              {
-                studentId: {
-                  contains: input.query,
-                },
-              },
-              {
-                employeeCode: {
-                  contains: input.query,
-                },
-              },
-              {
-                firstName: {
-                  contains: input.query,
-                  mode: "insensitive" as const,
-                },
-              },
-              {
-                lastName: {
-                  contains: input.query,
-                  mode: "insensitive" as const,
-                },
-              },
+              { studentId: { contains: input.query } },
+              { employeeCode: { contains: input.query } },
+              { firstName: { contains: input.query, mode: "insensitive" } },
+              { lastName: { contains: input.query, mode: "insensitive" } },
             ],
           }
         : {}),
     },
+  };
+
+  conditions.push({ user: userFilter });
+
+  return {
+    AND: conditions,
   };
 }

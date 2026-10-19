@@ -15,7 +15,7 @@ function cents(value: string) {
 }
 
 function amount(value: number) {
-  return `${Math.floor(value / 100)}.${String(value % 100).padStart(2, "0")}`;
+  return signedAmount(value);
 }
 
 function signedAmount(value: number) {

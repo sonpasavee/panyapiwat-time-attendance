@@ -169,9 +169,7 @@ export default async function StudentDashboardPage() {
                 ) : checkedOut && today?.workMinutes != null ? (
                   <>
                     <p className="m-0 mt-1 text-[clamp(2rem,9vw,3rem)] font-bold leading-[1.15] tabular-nums break-all">
-                      {String(Math.floor(today.workMinutes / 3600)).padStart(2, "0")}:
-                      {String(Math.floor((today.workMinutes % 3600) / 60)).padStart(2, "0")}:
-                      {String(Math.floor(((today.workMinutes % 3600) % 60))).padStart(2, "0")}
+                      {formatMinutes(today.workMinutes)}
                     </p>
                     <p className="mt-1.5 text-sm muted">ทำงานครบแล้ววันนี้</p>
                   </>

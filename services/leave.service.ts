@@ -155,10 +155,10 @@ export function buildAdminLeaveFilter(input: {
 
     ...(input.month && input.year
       ? {
-          startDate: {
-            gte: new Date(Date.UTC(input.year, input.month - 1, 1)),
-            lt: new Date(Date.UTC(input.year, input.month, 1)),
-          },
+          AND: [
+            { startDate: { lt: new Date(Date.UTC(input.year, input.month, 1)) } },
+            { endDate: { gte: new Date(Date.UTC(input.year, input.month - 1, 1)) } },
+          ],
         }
       : {}),
 

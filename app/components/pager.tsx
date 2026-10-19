@@ -24,6 +24,9 @@ export default function Pager({
 }: PagerProps) {
   if (totalPages <= 1 && !summary) return null;
 
+  const safeTotalPages = Math.max(1, totalPages);
+  const safePage = Math.min(Math.max(1, page), safeTotalPages);
+
   const href = (target: number) =>
     `${pathname}?${new URLSearchParams({ ...params, page: String(target) })}`;
 
@@ -38,22 +41,22 @@ export default function Pager({
     <div className="flex flex-col gap-2.5 border-t border-[#edf1f7] px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-6">
       {summary && <span className="text-[13px] muted">{summary}</span>}
       <div className="flex max-w-full items-center gap-1.5 overflow-x-auto pb-0.5">
-        {page > 1 ? (
-          <Link href={href(page - 1)} className={btn}>
+        {safePage > 1 ? (
+          <Link href={href(safePage - 1)} className={btn}>
             ก่อนหน้า
           </Link>
         ) : numbered ? (
           <span className={`${btn} pointer-events-none opacity-40`}>ก่อนหน้า</span>
         ) : null}
         {numbered &&
-          pageWindow(page, totalPages).map((p, i, arr) => (
+          pageWindow(safePage, safeTotalPages).map((p, i, arr) => (
             <span key={p} className="flex items-center gap-1.5">
               {i > 0 && arr[i - 1] !== p - 1 && (
                 <span className="muted px-1" aria-hidden="true">
                   …
                 </span>
               )}
-              {p === page ? (
+              {p === safePage ? (
                 <span aria-current="page" className={numActive}>
                   {p}
                 </span>
@@ -64,13 +67,16 @@ export default function Pager({
               )}
             </span>
           ))}
-        {page < totalPages ? (
-          <Link href={href(page + 1)} className={btn}>
+        {safePage < safeTotalPages ? (
+          <Link href={href(safePage + 1)} className={btn}>
             ถัดไป
           </Link>
         ) : numbered ? (
           <span className={`${btn} pointer-events-none opacity-40`}>ถัดไป</span>
         ) : null}
+        {!numbered && totalPages <= 0 && (
+          <span className="px-2 text-[13px] muted">หน้า 1 จาก 1</span>
+        )}
       </div>
     </div>
   );

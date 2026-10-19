@@ -65,6 +65,21 @@ test("money tracker service totals remain exact and separate by payment type", (
   assert.deepEqual(totals, { CASH: { in: "10.05", out: "2.01", net: "8.04" }, TRUEMONEY: { in: "3.00", out: "1.25", net: "1.75" }, net: "9.79" });
 });
 
+test("monthly money totals format negative net amounts correctly", () => {
+  const totals = summarizeMoneyEntries([
+    { moneyType: "CASH", direction: "IN", amount: "1.00" },
+    { moneyType: "CASH", direction: "OUT", amount: "2.25" },
+    { moneyType: "TRUEMONEY", direction: "IN", amount: "0.25" },
+    { moneyType: "TRUEMONEY", direction: "OUT", amount: "1.00" },
+  ]);
+
+  assert.deepEqual(totals, {
+    CASH: { in: "1.00", out: "2.25", net: "-1.25" },
+    TRUEMONEY: { in: "0.25", out: "1.00", net: "-0.75" },
+    net: "-2.00",
+  });
+});
+
 test("daily money summary computes spent per type and total", () => {
   const summary = summarizeDailyMoney([
     { moneyType: "CASH", direction: "IN", amount: "100.00" },

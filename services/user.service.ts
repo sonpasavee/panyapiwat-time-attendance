@@ -116,7 +116,7 @@ export async function getUserById(id: string) {
 // 6. Update User By Admin
 // ============================================
 
-export function updateUserByAdmin(
+export async function updateUserByAdmin(
   id: string,
   input: {
     firstName?: string;
@@ -128,17 +128,90 @@ export function updateUserByAdmin(
     isActive?: boolean;
     role?: "ADMIN" | "STUDENT";
   },
+  actorId: string,
 ) {
-  return prisma.user.update({
-    where: { id },
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const target = await tx.user.findUnique({
+            where: { id },
+            select: { id: true, role: true, isActive: true },
+          });
 
-    data: {
-      ...input,
-      yearLevel: input.gradeLevel,
-    },
+          if (!target) {
+            throw new ApiError(404, "User not found", "NOT_FOUND");
+          }
 
-    select: publicUser,
-  });
+          if (actorId === id && input.role && input.role !== "ADMIN") {
+            throw new ApiError(
+              409,
+              "Administrators cannot remove their own role",
+              "LAST_ADMIN_PROTECTION",
+            );
+          }
+
+          if (actorId === id && input.isActive === false) {
+            throw new ApiError(
+              409,
+              "Administrators cannot deactivate their own account",
+              "SELF_DEACTIVATION_PROTECTION",
+            );
+          }
+
+          const nextRole = input.role ?? target.role;
+          const nextIsActive = input.isActive ?? target.isActive;
+          const removesActiveAdmin =
+            target.role === "ADMIN" &&
+            target.isActive &&
+            (nextRole !== "ADMIN" || !nextIsActive);
+
+          if (removesActiveAdmin) {
+            const otherActiveAdmins = await tx.user.count({
+              where: {
+                id: { not: id },
+                role: "ADMIN",
+                isActive: true,
+              },
+            });
+
+            if (otherActiveAdmins === 0) {
+              throw new ApiError(
+                409,
+                "At least one active administrator must remain",
+                "LAST_ADMIN_PROTECTION",
+              );
+            }
+          }
+
+          return tx.user.update({
+            where: { id },
+            data: {
+              ...input,
+              yearLevel: input.gradeLevel,
+            },
+            select: publicUser,
+          });
+        },
+        { isolationLevel: "Serializable" },
+      );
+    } catch (error) {
+      const isSerializationConflict =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2034";
+
+      if (isSerializationConflict && attempt < 2) continue;
+      throw error;
+    }
+  }
+
+  throw new ApiError(
+    409,
+    "Could not safely update administrator account; please retry",
+    "ADMIN_UPDATE_CONFLICT",
+  );
 }
 
 // ============================================
@@ -150,28 +223,14 @@ export function changeUserRole(
   role: "ADMIN" | "STUDENT",
   actorId: string,
 ) {
-  if (actorId === id && role !== "ADMIN") {
-    throw new ApiError(
-      409,
-      "Administrators cannot remove their own role",
-      "LAST_ADMIN_PROTECTION",
-    );
-  }
-
-  return prisma.user.update({
-    where: { id },
-
-    data: {
-      role,
-    },
-
-    select: {
-      id: true,
-      role: true,
-      firstName: true,
-      lastName: true,
-    },
-  });
+  return updateUserByAdmin(id, { role }, actorId).then(
+    ({ id: userId, role: updatedRole, firstName, lastName }) => ({
+      id: userId,
+      role: updatedRole,
+      firstName,
+      lastName,
+    }),
+  );
 }
 
 // ============================================
@@ -310,10 +369,15 @@ export async function resetUserPassword(id: string) {
   const temporaryPassword =
     user.employeeCode ?? user.studentId ?? randomBytes(6).toString("hex");
 
-  const updated = await prisma.user.update({
-    where: { id },
-    data: { passwordHash: await hashPassword(temporaryPassword) },
-    select: publicUser,
+  const passwordHash = await hashPassword(temporaryPassword);
+  const updated = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id },
+      data: { passwordHash },
+      select: publicUser,
+    });
+    await tx.session.deleteMany({ where: { userId: id } });
+    return user;
   });
 
   return { user: updated, temporaryPassword };

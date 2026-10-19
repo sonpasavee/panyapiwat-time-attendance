@@ -11,12 +11,13 @@ import { monthRange } from "@/lib/time";
 import { listUsers } from "@/services/user.service";
 import {
   buildAdminAttendanceFilter,
+  countMonthlyAttendanceDays,
   listAdminAttendance,
 } from "@/services/attendance.service";
 import { listAdminLeaves } from "@/services/leave.service";
 import {
   buildAdminMoneyFilter,
-  listAdminMoneyEntries,
+  sumAdminMoneyEntries,
 } from "@/services/money-tracker.service";
 import {
   amountToCents,
@@ -89,7 +90,7 @@ export default async function AdminOverviewPage({
   const yesterdayKey = yesterday.toISOString().slice(0, 10);
   const { month: curMonth, year: curYear } = monthYear(new URLSearchParams());
 
-  const [students, todayAtt, todayLeaves, missedOut, monthAtt, monthMoney] =
+  const [students, todayAtt, todayLeaves, missedOut, yesterdayAtt, monthAttendanceDays, monthMoneyTotals] =
     await Promise.all([
       listUsers({ role: "STUDENT", isActive: true }, 0, 500),
       listAdminAttendance(
@@ -110,15 +111,14 @@ export default async function AdminOverviewPage({
         "asc",
       ),
       listAdminAttendance(
-        buildAdminAttendanceFilter({ monthRange: monthRange(curYear, curMonth) }),
+        buildAdminAttendanceFilter({ date: yesterdayKey }),
         0,
-        5000,
+        1000,
         "asc",
       ),
-      listAdminMoneyEntries(
+      countMonthlyAttendanceDays(monthRange(curYear, curMonth)),
+      sumAdminMoneyEntries(
         buildAdminMoneyFilter(curMonth, curYear, {}),
-        0,
-        5000,
       ),
     ]);
 
@@ -180,7 +180,7 @@ export default async function AdminOverviewPage({
   const shown = filtered.slice(0, 7);
 
   // ข้อมูลเงินไม่ครบ = เช็กเอาท์แล้วแต่สรุปยอดรายวันไม่ได้
-  const incompleteMoney = todayAtt.items.filter(
+  const incompleteMoney = yesterdayAtt.items.filter(
     (a) => a.checkOutAt && !summarizeDailyMoney(a.money).complete,
   ).length;
 
@@ -195,15 +195,15 @@ export default async function AdminOverviewPage({
     }
     return Math.max(count, 1);
   })();
-  const shopCheckDays = new Map<string, Set<string>>();
-  for (const a of monthAtt.items) {
-    const shop = a.user.shopCode ?? "–";
-    let set = shopCheckDays.get(shop);
-    if (!set) {
-      set = new Set<string>();
-      shopCheckDays.set(shop, set);
+  const studentShopById = new Map(
+    students.items.map((user) => [user.id, user.shopCode ?? "\u2013"]),
+  );
+  const shopCheckDays = new Map<string, number>();
+  for (const row of monthAttendanceDays) {
+    const shop = studentShopById.get(row.userId);
+    if (shop) {
+      shopCheckDays.set(shop, (shopCheckDays.get(shop) ?? 0) + row._count._all);
     }
-    set.add(`${a.userId}_${a.workDate.toISOString().slice(0, 10)}`);
   }
   const shopStudents = new Map<string, number>();
   for (const u of students.items) {
@@ -213,7 +213,7 @@ export default async function AdminOverviewPage({
   const shopRates = [...shopStudents.entries()]
     .filter(([shop]) => !shopCode || shop === shopCode)
     .map(([shop, count]) => {
-      const days = shopCheckDays.get(shop)?.size ?? 0;
+      const days = shopCheckDays.get(shop) ?? 0;
       const rate = Math.min(100, Math.round((days / (count * elapsedWeekdays)) * 100));
       return { shop, rate };
     })
@@ -238,7 +238,7 @@ export default async function AdminOverviewPage({
   // การเงินเดือนนี้
   let inCents = 0;
   let outCents = 0;
-  for (const e of monthMoney.items) {
+  for (const e of monthMoneyTotals) {
     const c = amountToCents(String(e.amount));
     if (e.direction === "IN") inCents += c;
     else outCents += c;
@@ -443,7 +443,7 @@ export default async function AdminOverviewPage({
                   <span style={{ color: "#1e3a8a" }}>ข้อมูลเงินไม่ครบ</span>
                   <span style={{ color: "#475569" }}>เมื่อวานไม่ได้กรอกเงินคงเหลือ</span>
                 </span>
-                <Link href={`/admin/attendance?date=${todayKey}`} style={{ color: "#1750b8" }}>
+                <Link href={`/admin/attendance?date=${yesterdayKey}`} style={{ color: "#1750b8" }}>
                   ดูรายชื่อ ›
                 </Link>
               </div>

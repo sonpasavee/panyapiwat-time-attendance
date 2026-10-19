@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { json } from "@/lib/api";
+import { ApiError, handleError, json } from "@/lib/api";
 import { expireAttendanceImages } from "@/services/attendance-image-retention.service";
 
 export const maxDuration = 60;
@@ -19,18 +19,17 @@ function authorized(request: Request) {
 export async function GET(request: Request) {
   if (!authorized(request)) {
     return json(
-      { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid cron authorization" } },
+      { error: { code: "UNAUTHORIZED", message: "Invalid cron authorization" } },
       401,
     );
   }
 
   try {
-    return json({ ok: true, data: await expireAttendanceImages() });
+    return json(await expireAttendanceImages());
   } catch (error) {
     console.error("Attendance image expiration job failed", error);
-    return json(
-      { ok: false, error: { code: "INTERNAL_ERROR", message: "Image expiration job failed" } },
-      500,
+    return handleError(
+      new ApiError(500, "Image expiration job failed", "INTERNAL_ERROR"),
     );
   }
 }

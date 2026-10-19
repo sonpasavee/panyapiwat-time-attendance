@@ -46,7 +46,7 @@ export async function PATCH(
   try {
     requireSameOrigin(request);
 
-    await requireUser("ADMIN");
+    const requireAdmin = await requireUser("ADMIN");
 
     const { id } = await context.params;
 
@@ -58,6 +58,7 @@ export async function PATCH(
       user: await updateUserByAdmin(
         idSchema.parse(id),
         input,
+        requireAdmin.id,
       ),
     });
   } catch (error) {

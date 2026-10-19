@@ -8,6 +8,7 @@ import {
 import { monthRange } from "@/lib/time";
 import {
   buildAdminAttendanceFilter,
+  getAdminAttendanceStats,
   listAdminAttendance,
 } from "@/services/attendance.service";
 import { listShopCodes } from "@/services/user.service";
@@ -100,40 +101,54 @@ export default async function AdminAttendancePage({
       : "";
 
   const today = bangkokDateKey();
+  const todayDate = new Date(`${today}T00:00:00.000Z`);
 
-  const where = buildAdminAttendanceFilter({
+  const filterInput = {
     date: filters.date,
     monthRange: filters.date ? undefined : monthRange(year, month),
     shopCode: filters.shopCode,
     query: filters.q,
+  };
+  const baseWhere = buildAdminAttendanceFilter(filterInput);
+  const where = buildAdminAttendanceFilter({
+    ...filterInput,
+    status: status || undefined,
+    today: todayDate,
   });
 
   // ดึงทั้งเดือน (ไม่แตะ service เดิม) แล้วกรองสถานะ + แบ่งหน้าในเพจ
-  const [{ items }, shopCodes] = await Promise.all([
-    listAdminAttendance(where, 0, 2000, filters.sort ?? "desc"),
+  const [pageResult, stats, shopCodes] = await Promise.all([
+    listAdminAttendance(
+      where,
+      (page - 1) * pageSize,
+      pageSize,
+      filters.sort ?? "desc",
+    ),
+    getAdminAttendanceStats(baseWhere, todayDate),
     listShopCodes(),
   ]);
 
-  const withStatus = items.map((item) => ({
+  const totalPages = Math.max(1, Math.ceil(pageResult.total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const items =
+    safePage === page
+      ? pageResult.items
+      : (
+          await listAdminAttendance(
+            where,
+            (safePage - 1) * pageSize,
+            pageSize,
+            filters.sort ?? "desc",
+          )
+        ).items;
+  const pageItems = items.map((item) => ({
     item,
     st: (item.checkOutAt
       ? "complete"
-      : item.workDate.toISOString().slice(0, 10) === today
+      : item.workDate.toISOString().slice(0, 10) >= today
         ? "working"
         : "missed") as Exclude<StatusFilter, "">,
   }));
-
-  const stats = {
-    total: withStatus.length,
-    complete: withStatus.filter((r) => r.st === "complete").length,
-    working: withStatus.filter((r) => r.st === "working").length,
-    missed: withStatus.filter((r) => r.st === "missed").length,
-  };
-
-  const filtered = status === "" ? withStatus : withStatus.filter((r) => r.st === status);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pageItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const rows: AttendanceRow[] = pageItems.map(({ item }) => ({
     id: item.id,
@@ -212,7 +227,7 @@ export default async function AdminAttendancePage({
           page={safePage}
           totalPages={totalPages}
           numbered
-          summary={`ทั้งหมด ${filtered.length} รายการ`}
+          summary={`ทั้งหมด ${pageResult.total} รายการ`}
         />
       }
     />

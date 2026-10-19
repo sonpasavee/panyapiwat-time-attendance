@@ -56,6 +56,18 @@ export function handleError(error: unknown) {
     );
   }
 
+  if (error instanceof SyntaxError) {
+    return json(
+      {
+        error: {
+          code: "INVALID_JSON",
+          message: "Request body must be valid JSON",
+        },
+      },
+      400,
+    );
+  }
+
   if (
     error instanceof Prisma.PrismaClientKnownRequestError
   ) {
@@ -112,10 +124,16 @@ export async function route<T>(
 export function requireSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
 
-  if (
-    !origin ||
-    new URL(origin).host !== new URL(request.url).host
-  ) {
+  let sameOrigin = false;
+  if (origin) {
+    try {
+      sameOrigin = new URL(origin).origin === new URL(request.url).origin;
+    } catch {
+      sameOrigin = false;
+    }
+  }
+
+  if (!sameOrigin) {
     throw new ApiError(
       403,
       "Invalid request origin",

@@ -366,6 +366,19 @@ export async function listAdminMoneyEntries(
   };
 }
 
+export async function sumAdminMoneyEntries(where: object) {
+  const totals = await prisma.moneyEntry.groupBy({
+    by: ["direction"],
+    where,
+    _sum: { amount: true },
+  });
+
+  return totals.map((row) => ({
+    direction: row.direction,
+    amount: row._sum.amount?.toString() ?? "0",
+  }));
+}
+
 export function buildAdminMoneyFilter(
   month: number,
   year: number,
