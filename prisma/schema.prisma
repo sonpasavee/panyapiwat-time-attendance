@@ -33,16 +33,6 @@ enum LeaveType {
   PERSONAL // ลากิจ
 }
 
-// รหัสร้าน / สาขาที่ฝึก
-model Branch {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique // รหัสร้าน
-  name      String?
-  createdAt DateTime @default(now())
-
-  users User[]
-}
-
 model User {
   id           String   @id @default(uuid())
   role         Role     @default(STUDENT)
@@ -54,18 +44,15 @@ model User {
   employeeCode String?  @unique // รหัสพนักงาน
   shopCode     String?
   gradeLevel   Int?
-  branchId     Int?     // รหัสร้านที่ฝึก
   yearLevel    Int?     // ระดับชั้น
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  branch      Branch?      @relation(fields: [branchId], references: [id])
   attendances Attendance[]
   leaves      Leave[]
   sessions    Session[]
 
-  @@index([branchId])
   @@index([role])
 }
 

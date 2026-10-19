@@ -225,7 +225,6 @@ Prisma ORM 7 ใช้ PostgreSQL driver adapter (`PrismaPg`) และอ่า
 | Model | หน้าที่ |
 | --- | --- |
 | `User` | บัญชี นักศึกษา/เจ้าหน้าที่ ข้อมูลรหัส ร้าน และสถานะ |
-| `Branch` | ข้อมูลรหัสสาขาและความสัมพันธ์กับผู้ใช้ |
 | `Session` | hash ของ session token และเวลาหมดอายุ |
 | `LoginAttempt` | ตัวนับการพยายามเข้าสู่ระบบเพื่อ rate limit |
 | `Attendance` | วันทำงาน เวลาเข้า/ออก ภาพ หมายเหตุ และจำนวนนาที |
