@@ -3,7 +3,6 @@ import { timingSafeEqual } from "node:crypto";
 import { json } from "@/lib/api";
 import { expireAttendanceImages } from "@/services/attendance-image-retention.service";
 
-export const runtime = "nodejs";
 export const maxDuration = 60;
 
 function authorized(request: Request) {
