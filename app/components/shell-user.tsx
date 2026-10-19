@@ -1,4 +1,5 @@
 import { cache } from "react";
+import Link from "next/link";
 
 import { currentUser } from "@/lib/auth";
 import { getUserProfile } from "@/services/user.service";
@@ -41,6 +42,9 @@ export async function SidebarUserCard() {
           {user?.name ?? "–"}
         </p>
         <p className="m-0 text-xs muted">{user?.roleLabel ?? ""}</p>
+        <Link href="/account/password" className="mt-1 inline-flex min-h-8 items-center text-xs font-semibold text-[#1750b8] hover:underline">
+          เปลี่ยนรหัสผ่าน
+        </Link>
       </div>
     </div>
   );

@@ -438,3 +438,18 @@ export function monthYear(search: URLSearchParams) {
     year: search.get("year") ?? currentYear,
   });
 }
+
+// ============================================
+// 15 . Change Password Validators
+// ============================================
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: z
+    .string()
+    .min(15, "รหัสผ่านใหม่ต้องมีอย่างน้อย 15 ตัวอักษร")
+    .max(128),
+  sessionAction: z.enum(["KEEP_CURRENT", "REVOKE_ALL"]).default("KEEP_CURRENT"),
+}).refine((value) => value.currentPassword !== value.newPassword, {
+  path: ["newPassword"],
+  message: "รหัสผ่านใหม่ต้องต่างจากรหัสผ่านปัจจุบัน",
+});

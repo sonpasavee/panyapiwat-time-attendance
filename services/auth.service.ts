@@ -12,7 +12,7 @@ import {
 import {
   findLoginUser,
   findUserPassword,
-  updateUserPassword,
+  updatePasswordAndManageSessions,
 } from "@/repositories/user.repository";
 
 // ========================================
@@ -69,6 +69,8 @@ export async function changePassword(
   userId: string,
   currentPassword: string,
   newPassword: string,
+  sessionAction: "KEEP_CURRENT" | "REVOKE_ALL",
+  currentTokenHash: string,
 ) {
   const user = await findUserPassword(userId);
 
@@ -88,7 +90,18 @@ export async function changePassword(
 
   const newPasswordHash = await hashPassword(newPassword);
 
-  await updateUserPassword(userId, newPasswordHash);
+  const revokedSessions = await updatePasswordAndManageSessions(
+    userId,
+    newPasswordHash,
+    sessionAction,
+    currentTokenHash,
+  );
 
-  return { success: true };
+  return {
+    success: true,
+    sessionAction,
+    revokedSessions: revokedSessions.map((session) => ({
+      createdAt: session.createdAt.toISOString(),
+    })),
+  };
 }

@@ -153,6 +153,14 @@ export async function clearSession() {
   jar.delete(COOKIE);
 }
 
+export async function currentSessionTokenHash() {
+  const token = (await cookies()).get(COOKIE)?.value;
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    throw new ApiError(401, "Authentication required", "UNAUTHENTICATED");
+  }
+  return tokenHash(token);
+}
+
 export async function currentUser() {
   await connection();
 

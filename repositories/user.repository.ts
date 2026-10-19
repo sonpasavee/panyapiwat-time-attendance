@@ -215,6 +215,34 @@ export function updatePasswordAndRevokeSessions(
   });
 }
 
+export function updatePasswordAndManageSessions(
+  id: string,
+  passwordHash: string,
+  action: "KEEP_CURRENT" | "REVOKE_ALL",
+  currentTokenHash: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    const where =
+      action === "KEEP_CURRENT"
+        ? { userId: id, tokenHash: { not: currentTokenHash } }
+        : { userId: id };
+    const revokedSessions = await tx.session.findMany({
+      where,
+      select: { createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    await tx.user.update({
+      where: { id },
+      data: { passwordHash },
+      select: { id: true },
+    });
+    await tx.session.deleteMany({ where });
+
+    return revokedSessions;
+  });
+}
+
 export function listDistinctShopCodes() {
   return prisma.user.findMany({
     where: { shopCode: { not: null } },

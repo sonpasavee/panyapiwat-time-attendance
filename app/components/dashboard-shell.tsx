@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import Link from "next/link";
 
 import DashboardNav, { type NavItem } from "./dashboard-nav";
 import LogoutButton from "./logout-button";
@@ -101,6 +102,17 @@ export default function DashboardShell({
             </Suspense>
           </p>
         </div>
+        <Link
+          href="/account/password"
+          aria-label="เปลี่ยนรหัสผ่าน"
+          title="เปลี่ยนรหัสผ่าน"
+          className="inline-flex h-11 w-11 flex-none items-center justify-center rounded-xl border border-[#e3e9f2] bg-white text-[#1750b8] hover:bg-[#eaf1ff]"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="8" cy="15" r="4" />
+            <path d="m11 12 8-8 3 3-3 3-2-2-2 2 2 2-3 3" />
+          </svg>
+        </Link>
         <LogoutButton compact />
       </header>
 
