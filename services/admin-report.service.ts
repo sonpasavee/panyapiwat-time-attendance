@@ -47,6 +47,14 @@ export type MonthlyRow = {
   totalMinutes: number;
 };
 
+const IMAGE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+function availablePhotoUrl(url: string | null, uploadedAt: Date | null) {
+  return url && uploadedAt && Date.now() - uploadedAt.getTime() < IMAGE_RETENTION_MS
+    ? url
+    : null;
+}
+
 // รายชื่อนักศึกษาที่ใช้งานอยู่ (roster ตั้งต้นของหน้ารายงาน)
 function userWhere(filter: ReportUserFilter) {
   return {
@@ -161,8 +169,8 @@ export async function getDailyReport(
             ? minutesBetween(att.checkInAt, att.checkOutAt)
             : null))
         : null,
-      checkInPhotoUrl: att?.checkInPhotoUrl ?? null,
-      checkOutPhotoUrl: att?.checkOutPhotoUrl ?? null,
+      checkInPhotoUrl: availablePhotoUrl(att?.checkInPhotoUrl ?? null, att?.checkInAt ?? null),
+      checkOutPhotoUrl: availablePhotoUrl(att?.checkOutPhotoUrl ?? null, att?.checkOutAt ?? null),
       leaveType,
       status,
       moneySummary: att ? summarizeDailyMoney(att.money) : null,
@@ -395,8 +403,8 @@ export async function getUserMonthlyDetail(
       workMinutes:
         a.workMinutes ??
         (a.checkOutAt ? minutesBetween(a.checkInAt, a.checkOutAt) : null),
-      checkInPhotoUrl: a.checkInPhotoUrl,
-      checkOutPhotoUrl: a.checkOutPhotoUrl,
+      checkInPhotoUrl: availablePhotoUrl(a.checkInPhotoUrl, a.checkInAt),
+      checkOutPhotoUrl: availablePhotoUrl(a.checkOutPhotoUrl, a.checkOutAt),
     })),
     leaves: leaves.map((l) => ({
       type: l.type,

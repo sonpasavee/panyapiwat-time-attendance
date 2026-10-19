@@ -19,7 +19,7 @@ export type AttendanceRow = {
   checkInAt: string;
   checkOutAt: string | null;
   workMinutes: number | null;
-  checkInPhotoUrl: string;
+  checkInPhotoUrl: string | null;
   checkOutPhotoUrl: string | null;
   user: {
     id: string;
@@ -40,7 +40,7 @@ type DetailAttendance = {
   checkInAt: string;
   checkOutAt: string | null;
   workMinutes: number | null;
-  checkInPhotoUrl: string;
+  checkInPhotoUrl: string | null;
   checkOutPhotoUrl: string | null;
   money: DetailMoney[];
   user: AttendanceRow["user"];
@@ -89,6 +89,21 @@ function fmtDayMonth(isoDate: string) {
 function fmtFullDate(isoDate: string) {
   const d = new Date(`${isoDate}T00:00:00Z`);
   return `${dayNum.format(d)} ${monthShort.format(d)} ${yearFmt.format(d)}`;
+}
+
+const IMAGE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+function imageExpired(at: string | null) {
+  return !!at && Date.now() - new Date(at).getTime() >= IMAGE_RETENTION_MS;
+}
+
+function ExpiredPhoto() {
+  return (
+    <span className="att-photo att-photo-expired" role="img" aria-label="รูปหมดอายุแล้ว">
+      <CameraIcon />
+      <span>รูปหมดอายุแล้ว</span>
+    </span>
+  );
 }
 
 function fmtWeekday(isoDate: string) {
@@ -457,7 +472,7 @@ export default function AttendanceManager({
                         </td>
                         <td>
                           <span className="att-time">
-                            <a
+                            {r.checkInPhotoUrl && !imageExpired(r.checkInAt) ? <a
                               className="att-photo-link"
                               href={r.checkInPhotoUrl}
                               target="_blank"
@@ -466,14 +481,14 @@ export default function AttendanceManager({
                               onClick={(e) => e.stopPropagation()}
                             >
                               <CameraIcon />
-                            </a>
+                            </a> : <ExpiredPhoto />}
                             {fmtTime(r.checkInAt)}
                           </span>
                         </td>
                         <td>
                           {r.checkOutAt ? (
                             <span className="att-time">
-                              {r.checkOutPhotoUrl && (
+                              {r.checkOutPhotoUrl && !imageExpired(r.checkOutAt) ? (
                                 <a
                                   className="att-photo-link"
                                   href={r.checkOutPhotoUrl}
@@ -483,7 +498,7 @@ export default function AttendanceManager({
                                 >
                                   <CameraIcon />
                                 </a>
-                              )}
+                              ) : imageExpired(r.checkOutAt) ? <ExpiredPhoto /> : null}
                               {fmtTime(r.checkOutAt)}
                             </span>
                           ) : (
@@ -581,7 +596,7 @@ export default function AttendanceManager({
                       <span className="att-check-label">
                         เช็กอิน <span className="att-check-time">{fmtTime(detail.checkInAt)}</span>
                       </span>
-                      <a
+                      {detail.checkInPhotoUrl && !imageExpired(detail.checkInAt) ? <a
                         className="att-photo"
                         href={detail.checkInPhotoUrl}
                         target="_blank"
@@ -590,7 +605,7 @@ export default function AttendanceManager({
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={detail.checkInPhotoUrl} alt="รูปเช็กอิน" />
-                      </a>
+                      </a> : <ExpiredPhoto />}
                     </div>
                     <div>
                       <span className="att-check-label">
@@ -599,7 +614,7 @@ export default function AttendanceManager({
                           {detail.checkOutAt ? fmtTime(detail.checkOutAt) : "–"}
                         </span>
                       </span>
-                      {detail.checkOutPhotoUrl ? (
+                      {detail.checkOutPhotoUrl && !imageExpired(detail.checkOutAt) ? (
                         <a
                           className="att-photo"
                           href={detail.checkOutPhotoUrl}
@@ -610,7 +625,7 @@ export default function AttendanceManager({
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={detail.checkOutPhotoUrl} alt="รูปเช็กเอาท์" />
                         </a>
-                      ) : (
+                      ) : imageExpired(detail.checkOutAt) ? <ExpiredPhoto /> : (
                         <span className="att-photo att-photo-empty" style={{ borderStyle: "dashed" }}>
                           <CameraIcon />
                         </span>

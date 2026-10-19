@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 
 import { bangkokWorkDate } from "@/lib/time";
+import { hideExpiredAttendancePhotos } from "@/lib/attendance-image-retention";
 import { deleteAttendanceImage, uploadAttendanceImage } from "@/lib/cloudinary";
 
 import { checkOutRuleError } from "@/services/attendance.logic";
@@ -247,7 +248,7 @@ export async function listMyAttendance(
   ]);
 
   return {
-    items,
+    items: items.map((item) => hideExpiredAttendancePhotos(item)),
     total,
   };
 }
@@ -256,8 +257,8 @@ export async function listMyAttendance(
 // Get Today's Attendance
 // ========================================
 
-export function getTodayAttendance(userId: string) {
-  return prisma.attendance.findUnique({
+export async function getTodayAttendance(userId: string) {
+  const attendance = await prisma.attendance.findUnique({
     where: {
       userId_workDate: {
         userId,
@@ -268,14 +269,15 @@ export function getTodayAttendance(userId: string) {
       money: true,
     },
   });
+  return attendance ? hideExpiredAttendancePhotos(attendance) : null;
 }
 
 // ========================================
 // Get My Attendance By ID
 // ========================================
 
-export function getMyAttendanceById(userId: string, id: string) {
-  return prisma.attendance.findFirst({
+export async function getMyAttendanceById(userId: string, id: string) {
+  const attendance = await prisma.attendance.findFirst({
     where: {
       id,
       userId,
@@ -284,6 +286,7 @@ export function getMyAttendanceById(userId: string, id: string) {
       money: true,
     },
   });
+  return attendance ? hideExpiredAttendancePhotos(attendance) : null;
 }
 
 // ========================================
@@ -325,7 +328,7 @@ export async function listAdminAttendance(
   ]);
 
   return {
-    items,
+    items: items.map((item) => hideExpiredAttendancePhotos(item)),
     total,
   };
 }
@@ -334,8 +337,8 @@ export async function listAdminAttendance(
 // Get Admin Attendance By ID
 // ========================================
 
-export function getAdminAttendanceById(id: string) {
-  return prisma.attendance.findUnique({
+export async function getAdminAttendanceById(id: string) {
+  const attendance = await prisma.attendance.findUnique({
     where: {
       id,
     },
@@ -353,6 +356,7 @@ export function getAdminAttendanceById(id: string) {
       },
     },
   });
+  return attendance ? hideExpiredAttendancePhotos(attendance) : null;
 }
 
 // ========================================
@@ -387,7 +391,7 @@ export async function listUserAttendance(
   ]);
 
   return {
-    items,
+    items: items.map((item) => hideExpiredAttendancePhotos(item)),
     total,
   };
 }

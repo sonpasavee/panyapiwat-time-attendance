@@ -5,7 +5,7 @@ import { decodeCsvBytes, type CsvEncoding } from "@/lib/csv-encoding";
 
 type ParsedRow = {
   line: number;
-  studentId: string;
+  studentId: string; 
   firstName: string;
   lastName: string;
   employeeCode: string;
@@ -18,6 +18,26 @@ type CsvRecord = { line: number; cells: string[] };
 
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_ROWS = 500;
+
+const HEADER_ALIASES: Record<string, string> = {
+  studentid: "studentid",
+  "รหัสนักศึกษา": "studentid",
+  firstname: "firstname",
+  "ชื่อ": "firstname",
+  lastname: "lastname",
+  "นามสกุล": "lastname",
+  employeecode: "employeecode",
+  "รหัสพนักงาน": "employeecode",
+  shopcode: "shopcode",
+  "รหัสร้าน": "shopcode",
+  gradelevel: "gradelevel",
+  "ชั้นปี": "gradelevel",
+};
+
+function normalizeHeader(value: string) {
+  const header = value.replace(/^\uFEFF/, "").trim().toLowerCase();
+  return HEADER_ALIASES[header] ?? header;
+}
 
 function parseCsv(text: string): CsvRecord[] {
   const records: CsvRecord[] = [];
@@ -156,7 +176,7 @@ export default function ImportForm() {
       if (records.length < 2) {
         throw new Error("ไฟล์ว่างเปล่า (ต้องมีแถวหัวคอลัมน์และข้อมูลอย่างน้อย 1 แถว)");
       }
-      const header = records[0].cells.map((value) => value.toLowerCase());
+      const header = records[0].cells.map(normalizeHeader);
       if (new Set(header).size !== header.length) {
         throw new Error("พบชื่อหัวคอลัมน์ซ้ำ กรุณาตรวจสอบไฟล์");
       }

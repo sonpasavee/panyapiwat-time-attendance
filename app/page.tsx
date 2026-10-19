@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { currentUser } from "@/lib/auth";
 
@@ -68,7 +68,7 @@ const steps = [
   { title: "ดูสรุป", desc: "เช็กยอดสะสมได้ทันที" },
 ];
 
-async function HomeCta() {
+export default async function HomePage() {
   const session = await currentUser();
   const dashboardHref =
     session?.role === "ADMIN"
@@ -77,26 +77,6 @@ async function HomeCta() {
         ? "/student"
         : null;
 
-  return (
-    <Link
-      href={dashboardHref ?? "/login?role=student"}
-      className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-[#1750b8] transition hover:bg-[#eaf1ff] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-white"
-    >
-      {dashboardHref ? "ไปหน้าของฉัน" : "เข้าสู่ระบบ"}
-    </Link>
-  );
-}
-
-function CtaFallback() {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-block h-11 w-28 animate-pulse rounded-full bg-white/30"
-    />
-  );
-}
-
-export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#f4f7fb] px-5 pb-8 text-[#0f1f3a] sm:px-8">
       <div className="mx-auto max-w-[1120px]">
@@ -132,10 +112,10 @@ export default function HomePage() {
               วิธีใช้งาน
             </a>
             <Link
-              href="/login?role=student"
+              href={dashboardHref ?? "/login?role=student"}
               className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#1d63d8] px-5 font-semibold text-white transition hover:bg-[#1750b8] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
             >
-              เข้าสู่ระบบ
+              {dashboardHref ? "ไปหน้าของฉัน" : "เข้าสู่ระบบ"}
             </Link>
           </nav>
         </header>
@@ -154,18 +134,29 @@ export default function HomePage() {
               และเลือกวันหยุด พร้อมรายงานให้ผู้ดูแลส่งออก Excel ได้ทันที
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href="/login?role=student"
-                className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#1d63d8] px-5 text-sm font-semibold text-white transition hover:bg-[#1750b8] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
-              >
-                เข้าสู่ระบบนักศึกษา
-              </Link>
-              <Link
-                href="/login?role=admin"
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#cbd9f3] bg-white px-5 text-sm font-medium text-[#1750b8] transition hover:bg-[#eaf1ff] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
-              >
-                สำหรับผู้ดูแลระบบ
-              </Link>
+              {dashboardHref ? (
+                <Link
+                  href={dashboardHref}
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#1d63d8] px-5 text-sm font-semibold text-white transition hover:bg-[#1750b8] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
+                >
+                  {session?.role === "ADMIN" ? "ไปหน้าผู้ดูแลระบบ" : "ไปหน้าของฉัน"}
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/login?role=student"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#1d63d8] px-5 text-sm font-semibold text-white transition hover:bg-[#1750b8] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
+                  >
+                    เข้าสู่ระบบนักศึกษา
+                  </Link>
+                  <Link
+                    href="/login?role=admin"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#cbd9f3] bg-white px-5 text-sm font-medium text-[#1750b8] transition hover:bg-[#eaf1ff] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
+                  >
+                    สำหรับผู้ดูแลระบบ
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -252,12 +243,17 @@ export default function HomePage() {
         <section className="mt-6 rounded-[20px] bg-gradient-to-r from-[#1959cc] to-[#4b91f5] px-5 py-6 text-center text-white sm:mt-7 sm:py-7">
           <h2 className="text-xl font-bold">พร้อมเริ่มบันทึกเวลาแล้วหรือยัง</h2>
           <p className="mt-1 text-xs text-white/85">
-            เข้าสู่ระบบด้วยบัญชีที่ได้รับจากผู้ดูแล
+            {dashboardHref
+              ? "กลับไปยังหน้าของคุณเพื่อจัดการข้อมูลต่อ"
+              : "เข้าสู่ระบบด้วยบัญชีที่ได้รับจากผู้ดูแล"}
           </p>
           <div className="mt-3">
-            <Suspense fallback={<CtaFallback />}>
-              <HomeCta />
-            </Suspense>
+            <Link
+              href={dashboardHref ?? "/login?role=student"}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-[#1750b8] transition hover:bg-[#eaf1ff] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              {dashboardHref ? "ไปหน้าของฉัน" : "เข้าสู่ระบบ"}
+            </Link>
           </div>
         </section>
 

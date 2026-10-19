@@ -17,7 +17,7 @@ import { ApiError } from "@/lib/api";
 const scrypt = promisify(scryptCallback);
 
 const COOKIE = "attendance_session";
-const MAX_AGE = 60 * 60 * 12;
+const MAX_AGE = 60 * 60 * 8;
 
 type Role = "ADMIN" | "STUDENT";
 

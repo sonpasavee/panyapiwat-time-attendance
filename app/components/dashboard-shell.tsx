@@ -68,8 +68,8 @@ export const studentNavItems: NavItem[] = [
 
 export const adminNavItems: NavItem[] = [
   { href: "/admin", label: "ภาพรวม", icon: <GridIcon />, exact: true },
-  { href: "/admin/attendance", label: "ตรวจสอบการลงเวลา", icon: <ClockIcon /> },
-  { href: "/admin/reports", label: "รายงานชั่วโมงทำงาน", icon: <ChartIcon /> },
+  { href: "/admin/attendance", label: "การลงเวลา", icon: <ClockIcon /> },
+  { href: "/admin/reports", label: "รายงานชั่วโมง", icon: <ChartIcon /> },
   { href: "/admin/users", label: "นักศึกษา", icon: <UsersIcon /> },
   { href: "/admin/finance", label: "การเงิน", icon: <WalletIcon /> },
   { href: "/admin/leaves", label: "การลา", icon: <CalendarIcon /> },

@@ -96,7 +96,7 @@ model Attendance {
   workDate         DateTime  @db.Date // วันที่ทำงาน (เวลาไทย)
 
   checkInAt        DateTime  @db.Timestamptz // time stamp เข้างาน
-  checkInPhotoUrl  String    // path รูปใน Supabase Storage
+  checkInPhotoUrl  String?
   checkInImagePublicId String?
   checkInNote      String?   // ข้อมูลที่กรอกตอนเข้า
 

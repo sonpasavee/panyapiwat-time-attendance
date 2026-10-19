@@ -102,8 +102,10 @@ export async function uploadAttendanceImage(
 export async function deleteAttendanceImage(
   publicId: string,
 ) {
-  await cloudinary.uploader.destroy(publicId, {
+  const result = await cloudinary.uploader.destroy(publicId, {
     resource_type: "image",
     invalidate: true,
   });
+
+  return result.result === "ok" || result.result === "not found";
 }

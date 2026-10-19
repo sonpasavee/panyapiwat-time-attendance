@@ -375,6 +375,18 @@
   color: #1d63d8;
 }
 
+.att-photo-expired {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  color: #5b6b82;
+  background: #f1f4f8;
+  font-size: 13px;
+}
+
 .att-workbox {
   display: flex;
   align-items: center;
