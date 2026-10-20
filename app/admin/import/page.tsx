@@ -20,7 +20,7 @@ export default async function AdminImportPage() {
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6">
       <header>
-        <h1 className="m-0 text-[28px] font-bold leading-snug">นำเข้ารายชื่อ</h1>
+        <h1 className="m-0 text-2xl font-bold leading-snug sm:text-[28px]">นำเข้ารายชื่อ</h1>
         <p className="mt-0.5 text-[15px] muted">
           อัปโหลดไฟล์ CSV เพื่อตรวจสอบและนำเข้ารายชื่อนักศึกษา
           (ไม่มีสมัครสมาชิกเอง — เฉพาะเจ้าหน้าที่นำเข้า)

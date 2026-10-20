@@ -56,7 +56,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <Link
               href="/login?role=student"
               aria-current={!isAdmin ? "page" : undefined}
-              className={`flex min-h-10 items-center justify-center rounded-full px-3 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8] ${
+              className={`flex min-h-11 items-center justify-center rounded-full px-3 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8] ${
                 !isAdmin
                   ? "bg-white text-[#1750b8] shadow-[0_2px_8px_rgba(24,65,130,0.10)]"
                   : "text-[#5b6b82] hover:text-[#1750b8]"
@@ -67,7 +67,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <Link
               href="/login?role=admin"
               aria-current={isAdmin ? "page" : undefined}
-              className={`flex min-h-10 items-center justify-center rounded-full px-3 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8] ${
+              className={`flex min-h-11 items-center justify-center rounded-full px-3 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8] ${
                 isAdmin
                   ? "bg-white text-[#1750b8] shadow-[0_2px_8px_rgba(24,65,130,0.10)]"
                   : "text-[#5b6b82] hover:text-[#1750b8]"

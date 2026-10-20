@@ -172,6 +172,11 @@
 
 .att-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.att-table-scroll table {
+  min-width: 720px;
 }
 
 .att-group td {
@@ -231,7 +236,7 @@
   color: #5b6b82;
 }
 
-.att-shop {
+.att-shop-chip {
   display: inline-block;
   padding: 4px 12px;
   border-radius: 8px;
@@ -248,7 +253,7 @@
   gap: 8px;
   font-weight: 600;
   white-space: nowrap;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .att-photo-link {
@@ -348,7 +353,7 @@
   font-size: 15px;
   font-weight: 700;
   color: #1750b8;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .att-photo {
@@ -475,6 +480,10 @@
   .att-submit .btn {
     width: 100%;
   }
+  .att-photo-link {
+    width: 44px;
+    height: 44px;
+  }
   .att-overlay {
     padding: 24px 12px;
   }
@@ -483,6 +492,12 @@
   }
   .att-modal-foot {
     padding: 14px 20px 20px;
+  }
+  .att-modal-foot .btn {
+    width: 100%;
+  }
+  .att-modal-user {
+    flex-wrap: wrap;
   }
   .att-check-grid {
     grid-template-columns: 1fr;

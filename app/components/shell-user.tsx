@@ -42,7 +42,7 @@ export async function SidebarUserCard() {
           {user?.name ?? "–"}
         </p>
         <p className="m-0 text-xs muted">{user?.roleLabel ?? ""}</p>
-        <Link href="/account/password" className="mt-1 inline-flex min-h-8 items-center text-xs font-semibold text-[#1750b8] hover:underline">
+        <Link href="/account/password" className="mt-1 inline-flex min-h-11 items-center text-xs font-semibold text-[#1750b8] hover:underline">
           เปลี่ยนรหัสผ่าน
         </Link>
       </div>

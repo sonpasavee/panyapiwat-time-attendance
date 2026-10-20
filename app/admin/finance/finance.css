@@ -109,6 +109,10 @@
   border-radius: 14px;
 }
 
+.fin-stat > div {
+  min-width: 0;
+}
+
 .fin-stat-label {
   margin: 0;
   font-size: 13px;
@@ -120,13 +124,15 @@
   font-size: 24px;
   font-weight: 700;
   line-height: 1.2;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .fin-stat-sub {
   margin: 2px 0 0;
   font-size: 12px;
   color: #5b6b82;
+  overflow-wrap: anywhere;
 }
 
 /* แถบค้นหา */
@@ -169,6 +175,11 @@
 
 .fin-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fin-table-scroll table {
+  min-width: 760px;
 }
 
 .fin-user {
@@ -227,7 +238,7 @@
   display: block;
   font-weight: 700;
   font-size: 15px;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -290,7 +301,7 @@
   font-size: 12px;
   font-weight: 600;
   color: #33425b;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .fin-bar {
@@ -364,6 +375,9 @@
   .fin-shop {
     flex: 1 1 100%;
     min-width: 0;
+  }
+  .fin-filter > .btn {
+    width: 100%;
   }
   .fin-chart-scroll {
     padding: 8px 16px 0;

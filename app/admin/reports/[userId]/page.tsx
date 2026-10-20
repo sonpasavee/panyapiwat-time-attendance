@@ -286,7 +286,7 @@ export default async function AdminUserReportPage({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="tbl">
+            <table className="tbl min-w-[720px]">
               <caption className="sr-only">
                 ประวัติรายวัน {detail.user.firstName} {detail.user.lastName}{" "}
                 {monthLabel(month, year)}

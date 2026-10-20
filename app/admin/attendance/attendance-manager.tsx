@@ -365,7 +365,7 @@ export default function AttendanceManager({
             maxLength={100}
           />
         </div>
-        <div>
+        <div className="att-shop">
           <label htmlFor="att-shop" className="sr-only">รหัสร้าน</label>
           <select
             id="att-shop"
@@ -465,7 +465,7 @@ export default function AttendanceManager({
                         </td>
                         <td>
                           {r.user.shopCode ? (
-                            <span className="att-shop">{r.user.shopCode}</span>
+                            <span className="att-shop-chip">{r.user.shopCode}</span>
                           ) : (
                             "–"
                           )}

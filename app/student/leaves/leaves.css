@@ -165,7 +165,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 4px 6px 4px 14px;
   border-radius: 999px;
   background: #eaf1ff;
@@ -175,17 +175,26 @@
 }
 
 .leaves-chip button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: 999px;
   background: #d5e3fa;
   color: #33425b;
   font-size: 14px;
   cursor: pointer;
+}
+
+/* ขยายพื้นที่กดให้ถึง 44px โดยไม่ทำให้ชิปใหญ่ขึ้น */
+.leaves-chip button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
 }
 
 .leaves-count-pill {
@@ -403,7 +412,7 @@
     gap: 4px;
   }
   .leaves-cal-day {
-    min-height: 40px;
+    min-height: 44px;
     font-size: 14px;
   }
   .leaves-holiday-row {
@@ -416,7 +425,6 @@
 
 @media (max-width: 380px) {
   .leaves-cal-day {
-    min-height: 38px;
     font-size: 13px;
   }
   .leaves-cal-dow {

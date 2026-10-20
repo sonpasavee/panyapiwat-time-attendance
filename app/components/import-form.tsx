@@ -286,7 +286,7 @@ export default function ImportForm() {
           className="mt-1.5 flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-[#b3c2d8] bg-[#f8fafd] px-4 py-6 text-center transition hover:border-[#1d63d8]"
         >
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1d63d8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
-          <span className="text-[15px] font-semibold">
+          <span className="max-w-full break-words text-[15px] font-semibold">
             {fileName || "เลือกไฟล์ CSV"}
           </span>
           <span className="muted text-[13px]">
@@ -329,7 +329,7 @@ export default function ImportForm() {
             )}
           </p>
           <div className="max-h-80 overflow-auto">
-            <table className="tbl">
+            <table className="tbl min-w-[640px]">
               <thead>
                 <tr>
                   <th>แถว</th>

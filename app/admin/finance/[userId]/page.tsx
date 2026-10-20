@@ -267,7 +267,12 @@ export default async function AdminFinanceDetailPage({
                   const date = new Date(`${d.dateISO}T00:00:00Z`);
                   return (
                     <div key={d.dateISO} className="fin-bar-col">
-                      <span className="fin-bar-value">฿{total.toLocaleString("en-US")}</span>
+                      <span className="fin-bar-value">
+                        ฿{Number(centsToAmount(total)).toLocaleString("en-US", {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
                       <div
                         className="fin-bar"
                         style={{ height: `${Math.max(4, (total / maxSpent) * 100)}%` }}

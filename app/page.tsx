@@ -80,11 +80,11 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen bg-[#f4f7fb] px-5 pb-8 text-[#0f1f3a] sm:px-8">
       <div className="mx-auto max-w-[1120px]">
-        <header className="flex min-h-[76px] items-center justify-between gap-4">
+        <header className="flex min-h-[76px] flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2">
           <Link
             href="/"
             aria-label="ระบบบันทึกการฝึกอาชีพ - หน้าหลัก"
-            className="flex items-center gap-2.5 rounded-lg focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
+            className="flex min-h-11 items-center gap-2.5 rounded-lg focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1d63d8] text-white">
               <GraduationIcon />
@@ -98,16 +98,19 @@ export default async function HomePage() {
               </span>
             </span>
           </Link>
-          <nav aria-label="เมนูหลัก" className="flex items-center gap-5 text-xs sm:gap-8 sm:text-sm">
+          <nav
+            aria-label="เมนูหลัก"
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:gap-x-8 sm:text-sm"
+          >
             <a
               href="#features"
-              className="rounded text-[#5b6b82] hover:text-[#1750b8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
+              className="inline-flex min-h-11 items-center rounded px-1 text-[#5b6b82] hover:text-[#1750b8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
             >
               ฟีเจอร์
             </a>
             <a
               href="#how-it-works"
-              className="rounded text-[#5b6b82] hover:text-[#1750b8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
+              className="inline-flex min-h-11 items-center rounded px-1 text-[#5b6b82] hover:text-[#1750b8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d63d8]"
             >
               วิธีใช้งาน
             </a>
@@ -166,7 +169,7 @@ export default async function HomePage() {
           >
             <div aria-hidden="true" className="absolute right-4 top-0 h-[220px] w-[220px] rounded-full bg-[#dbe8ff]" />
             <div aria-hidden="true" className="absolute bottom-2 left-8 h-[82px] w-[82px] rounded-full bg-[#fff0bd]" />
-            <div className="relative z-10 w-[72%] rounded-[22px] bg-gradient-to-br from-[#1859ce] to-[#4a92ff] p-5 text-white shadow-[0_20px_40px_rgba(29,99,216,0.24)]">
+            <div className="relative z-10 w-[86%] rounded-[22px] bg-gradient-to-br from-[#1859ce] to-[#4a92ff] p-5 text-white shadow-[0_20px_40px_rgba(29,99,216,0.24)] min-[420px]:w-[72%]">
               <p className="text-[11px] font-medium text-white/85">
                 เวลาทำงานวันนี้ · เริ่มเมื่อ 08:30 น.
               </p>
@@ -177,7 +180,7 @@ export default async function HomePage() {
                 กำลังทำงาน
               </span>
             </div>
-            <div className="absolute right-0 top-[108px] z-20 flex w-[68%] items-center gap-3 rounded-[18px] bg-white px-4 py-3 shadow-[0_12px_30px_rgba(15,31,58,0.10)]">
+            <div className="absolute right-0 top-[140px] z-20 hidden w-[56%] items-center gap-3 rounded-[18px] bg-white px-4 py-3 shadow-[0_12px_30px_rgba(15,31,58,0.10)] min-[420px]:flex">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dcf5e6] text-[#16834a]">
                 <CheckIcon />
               </span>
@@ -186,7 +189,7 @@ export default async function HomePage() {
                 <span className="block text-[10px] text-[#5b6b82]">พร้อมเริ่มทำงาน</span>
               </span>
             </div>
-            <div className="absolute bottom-0 left-[12%] z-20 rounded-[18px] bg-white px-4 py-3 shadow-[0_12px_30px_rgba(15,31,58,0.10)]">
+            <div className="absolute bottom-0 left-[12%] z-20 hidden rounded-[18px] bg-white px-4 py-3 shadow-[0_12px_30px_rgba(15,31,58,0.10)] min-[420px]:block">
               <span className="block text-[10px] text-[#5b6b82]">เงินเข้าแล้ว</span>
               <span className="block text-sm font-bold text-[#1750b8]">฿230.00</span>
             </div>

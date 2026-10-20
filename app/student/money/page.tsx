@@ -136,8 +136,8 @@ export default async function StudentMoneyPage({
   return (
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="m-0 text-[28px] font-bold leading-snug">เงินส่วนตัว</h1>
+        <div className="min-w-0">
+          <h1 className="m-0 text-2xl font-bold leading-snug sm:text-[28px]">เงินส่วนตัว</h1>
           <p className="mt-0.5 text-[15px] muted">
             ประวัติเงินเอาเข้า คงเหลือ และใช้ไปรายวัน
           </p>

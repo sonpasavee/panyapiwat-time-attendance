@@ -190,13 +190,22 @@
 
 .admin-leaves-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-leaves-table-scroll table {
+  min-width: 760px;
 }
 
 .admin-leaves-user {
   display: flex;
   align-items: center;
   gap: 12px;
-  white-space: nowrap;
+}
+
+.admin-leaves-user > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .admin-leaves-avatar {
@@ -482,6 +491,12 @@
   }
   .admin-leaves-modal-foot {
     padding: 14px 20px 20px;
+  }
+  .admin-leaves-modal-foot .btn {
+    width: 100%;
+  }
+  .admin-leaves-modal-user {
+    flex-wrap: wrap;
   }
   .admin-leaves-summary-grid {
     grid-template-columns: 1fr;

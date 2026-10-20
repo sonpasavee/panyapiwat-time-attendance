@@ -150,8 +150,8 @@ export default async function StudentCheckInPage() {
   return (
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="m-0 text-[28px] font-bold leading-snug">เช็กอิน / เช็กเอาท์</h1>
+        <div className="min-w-0">
+          <h1 className="m-0 text-2xl font-bold leading-snug sm:text-[28px]">เช็กอิน / เช็กเอาท์</h1>
           <p className="mt-0.5 text-[15px] muted">
             บันทึกเวลาเข้า–ออกงานพร้อมรูปถ่ายและเงินส่วนตัว
           </p>
@@ -267,7 +267,7 @@ export default async function StudentCheckInPage() {
         <section aria-labelledby="money-h" className="card card-pad">
           <h2 id="money-h" className="m-0 text-[17px] font-semibold">สรุปเงินวันนี้</h2>
           <div className="mt-4 overflow-x-auto">
-            <table className="tbl">
+            <table className="tbl min-w-[520px]">
               <caption className="sr-only">เงินที่นำเข้า คงเหลือ และใช้ไป แยกตามประเภท</caption>
               <thead>
                 <tr>

@@ -138,7 +138,7 @@ export default async function AdminReportsPage({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
         <header className="mr-auto">
-          <h1 className="m-0 text-[28px] font-bold leading-snug">รายงานชั่วโมงทำงาน</h1>
+          <h1 className="m-0 text-2xl font-bold leading-snug sm:text-[28px]">รายงานชั่วโมงทำงาน</h1>
           <p className="muted mt-0.5 text-[15px]">
             {view === "daily" ? "สรุปชั่วโมงทำงานรายวันของแต่ละคน" : "สรุปชั่วโมงทำงานรายเดือนของแต่ละคน"}
           </p>
@@ -332,7 +332,7 @@ export default async function AdminReportsPage({
             <p className="muted px-6 py-6 text-sm">ไม่พบนักศึกษาตามเงื่อนไข</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="tbl">
+              <table className="tbl min-w-[720px]">
                 <caption className="sr-only">รายงานชั่วโมงทำงานรายวัน {shortDayLabel(date)}</caption>
                 <thead>
                   <tr>
@@ -395,7 +395,7 @@ export default async function AdminReportsPage({
             <p className="muted px-6 py-6 text-sm">ไม่พบนักศึกษาตามเงื่อนไข</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="tbl">
+              <table className="tbl min-w-[760px]">
                 <caption className="sr-only">รายงานชั่วโมงทำงานรายเดือน {monthLabel(month, year)}</caption>
                 <thead>
                   <tr>

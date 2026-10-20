@@ -168,6 +168,11 @@
 
 .users-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.users-table-scroll table {
+  min-width: 880px;
 }
 
 .users-name {
@@ -175,7 +180,11 @@
   align-items: center;
   gap: 12px;
   font-weight: 600;
-  white-space: nowrap;
+}
+
+.users-name > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .users-avatar {
@@ -368,6 +377,10 @@
   margin-top: 16px;
 }
 
+.users-modal-user > div {
+  min-width: 0;
+}
+
 .users-modal-user .users-avatar {
   width: 48px;
   height: 48px;
@@ -378,6 +391,7 @@
   margin: 0;
   font-size: 16px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .users-modal-user-meta {
@@ -507,6 +521,7 @@
   background: #dcfce7;
   color: #14532d;
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .users-confirm {
@@ -544,6 +559,9 @@
     flex: 1 1 100%;
     min-width: 0;
   }
+  .users-filter > .btn {
+    width: 100%;
+  }
   .users-field-row {
     grid-template-columns: 1fr;
   }
@@ -553,7 +571,21 @@
   .users-modal-body {
     padding: 22px 20px 16px;
   }
+  .users-modal-user {
+    flex-wrap: wrap;
+  }
   .users-modal-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
     padding: 14px 20px 20px;
+  }
+  .users-foot-group {
+    width: 100%;
+  }
+  .users-foot-group > * {
+    flex: 1 1 140px;
+  }
+  .users-modal-foot > .users-btn-danger-outline {
+    width: 100%;
   }
 }

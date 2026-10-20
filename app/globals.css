@@ -293,17 +293,24 @@ body {
   display: flex;
   gap: 4px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+.bottom-nav-list::-webkit-scrollbar {
+  display: none;
+}
 .bottom-nav-link {
+  box-sizing: border-box;
   display: flex;
-  flex: 1 0 auto;
+  flex: 1 1 0;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  min-width: 56px;
+  min-width: 0;
   min-height: 52px;
   justify-content: center;
   border-radius: 12px;
@@ -311,14 +318,25 @@ body {
   font-size: 11px;
   font-weight: 500;
   text-decoration: none;
-  padding: 4px 6px;
+  padding: 4px 2px;
   text-align: center;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
-.bottom-nav-link[aria-current="page"] {
+.bottom-nav-link[aria-current="page"],
+.bottom-nav-more[data-active="true"] {
   background: #eaf1ff;
   color: #1750b8;
   font-weight: 600;
+}
+
+/* ปุ่ม "เมนู" ในแถบล่าง (เป็น <button> ต้องรีเซ็ตสไตล์) */
+.bottom-nav-more {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
 }
 
 /* ---------- responsive guards (ไม่แตะ design tokens) ---------- */

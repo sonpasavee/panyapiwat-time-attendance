@@ -121,13 +121,13 @@ export default async function StudentDashboardPage() {
     <div className="flex flex-col gap-6">
       {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="m-0 text-[28px] font-bold leading-snug">แดชบอร์ด</h1>
-          <p className="mt-0.5 text-[15px] muted">
+        <div className="min-w-0">
+          <h1 className="m-0 text-2xl font-bold leading-snug sm:text-[28px]">แดชบอร์ด</h1>
+          <p className="mt-0.5 break-words text-[15px] muted">
             สวัสดี {profile.firstName} {profile.lastName} • {formatThaiHeader()}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm muted">
             ร้าน {profile.shopCode ?? "–"} • ชั้นปี {profile.gradeLevel ?? "–"}
           </span>
@@ -230,7 +230,7 @@ export default async function StudentDashboardPage() {
               <p className="muted px-6 pb-6 text-sm">ยังไม่มีประวัติการลงเวลา</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="tbl">
+                <table className="tbl min-w-[640px]">
                   <caption className="sr-only">ประวัติการลงเวลาเข้า–ออกงาน</caption>
                   <thead>
                     <tr>
@@ -321,7 +321,7 @@ export default async function StudentDashboardPage() {
           </div>
 
           <Card labelledBy="chart-h" className="card-pad">
-            <div className="flex items-baseline justify-between">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <h2 id="chart-h" className="m-0 text-[17px] font-semibold">ชั่วโมงทำงานรายวัน</h2>
               <span className="text-[13px] muted">
                 {new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", month: "long", year: "numeric" }).format(new Date())}
@@ -363,7 +363,7 @@ export default async function StudentDashboardPage() {
           <Card labelledBy="leave-h" className="card-pad">
             <div className="flex items-center justify-between">
               <h2 id="leave-h" className="m-0 text-[17px] font-semibold">การลา</h2>
-              <Link href="/student/leaves" className="btn btn-soft min-h-[40px] px-4 text-sm">
+              <Link href="/student/leaves" className="btn btn-soft min-h-[44px] px-4 text-sm">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
                 แจ้งลา
               </Link>

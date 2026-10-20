@@ -99,7 +99,7 @@
   display: block;
   font-size: 22px;
   color: #0f1f3a;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .ov-dot {
@@ -123,7 +123,7 @@
   display: block;
   font-size: 22px;
   line-height: 1.2;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .ov-todo span {
@@ -147,7 +147,7 @@
 .ov-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 16px;
   border-radius: 999px;
   border: 1px solid #d5deeb;
@@ -156,7 +156,7 @@
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .ov-pill[aria-current="page"] {
@@ -169,14 +169,23 @@
 /* ตาราง */
 .ov-table-scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ov-table-scroll table {
+  min-width: 720px;
 }
 
 .ov-user {
   display: flex;
   align-items: center;
   gap: 10px;
-  white-space: nowrap;
   font-weight: 600;
+}
+
+.ov-user > :last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ov-avatar {
@@ -293,7 +302,7 @@
 .ov-money-grid strong {
   display: block;
   font-size: 19px;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .ov-money-bar {

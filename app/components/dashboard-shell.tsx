@@ -145,7 +145,7 @@ export default function DashboardShell({
         </div>
       </div>
 
-      {/* Mobile bottom nav (เลื่อนแนวนอนได้ — admin มี 6 ปุ่มตามที่สั่งไม่ตัด) */}
+      {/* Mobile bottom nav — แสดงไม่เกิน 5 ปุ่ม (เมนูที่เหลืออยู่ในปุ่ม "เมนู") */}
       <div className="lg:hidden">
         <DashboardNav items={items} orientation="bottom" />
       </div>

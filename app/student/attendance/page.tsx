@@ -143,8 +143,8 @@ export default async function StudentHistoryPage({
   return (
     <div className="mx-auto flex w-full max-w-[860px] flex-col gap-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="m-0 text-[28px] font-bold leading-snug">ประวัติลงเวลา</h1>
+        <div className="min-w-0">
+          <h1 className="m-0 text-2xl font-bold leading-snug sm:text-[28px]">ประวัติลงเวลา</h1>
           <p className="mt-0.5 text-[15px] muted">
             ประวัติการลงเวลาเข้า–ออกงานรายเดือน
           </p>
