@@ -32,7 +32,12 @@ export default async function AdminLeavesPage({
   await requireAdminPage();
   const params = await searchParams;
 
-  const view = first(params.view) === "timeline" ? "timeline" : "list";
+  const requestedView = first(params.view);
+  const view = requestedView === "timeline"
+    ? "timeline"
+    : requestedView === "date"
+      ? "date"
+      : "student";
   const q = first(params.q)?.trim() ?? "";
   const shopCode = first(params.shopCode)?.trim() ?? "";
 

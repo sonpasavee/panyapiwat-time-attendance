@@ -123,6 +123,78 @@
   line-height: 1.2;
 }
 
+.admin-leaves-today {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: linear-gradient(110deg, #fff 0%, #fff 72%, #f7faff 100%);
+}
+
+.admin-leaves-today-icon {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fef3c7;
+  color: #a16207;
+}
+
+.admin-leaves-today-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-leaves-today-date,
+.admin-leaves-date-caption {
+  color: #5b6b82;
+  font-size: 12px;
+}
+
+.admin-leaves-today-content h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.admin-leaves-today-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.admin-leaves-today-person {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 4px;
+  border: 1px solid #e3e9f2;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.admin-leaves-today-person .admin-leaves-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.admin-leaves-today-person .admin-leaves-type {
+  padding: 3px 9px;
+}
+
+.admin-leaves-today-note {
+  flex: none;
+  color: #5b6b82;
+  font-size: 11px;
+}
+
 /* แถบค้นหา */
 .admin-leaves-filter {
   display: flex;
@@ -197,6 +269,169 @@
   min-width: 760px;
 }
 
+.admin-leaves-student-table {
+  width: 100%;
+  min-width: 700px !important;
+  table-layout: fixed;
+}
+
+.admin-leaves-student-table th:nth-child(1) { width: 23%; }
+.admin-leaves-student-table th:nth-child(2) { width: 17%; }
+.admin-leaves-student-table th:nth-child(3) { width: 50%; }
+.admin-leaves-student-table th:nth-child(4) { width: 10%; }
+
+.admin-leaves-student-table tbody tr:nth-child(-n + 2) {
+  background: #f6f9ff;
+}
+
+.admin-leaves-student-id {
+  display: block;
+  margin-top: 2px;
+  color: #5b6b82;
+  font-size: 11px;
+}
+
+.admin-leaves-today-types,
+.admin-leaves-group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.admin-leaves-group-entry {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.admin-leaves-group-chip {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.admin-leaves-group-chip[data-type="SICK"] { background: #ffe4e6; color: #9f1239; }
+.admin-leaves-group-chip[data-type="PERSONAL"] { background: #e6e6fa; color: #3b3480; }
+.admin-leaves-group-chip[data-type="HOLIDAY"] { background: #e1ebff; color: #1e3a8a; }
+
+.admin-leaves-reason {
+  padding-left: 4px;
+  color: #5b6b82;
+  font-size: 11px;
+}
+
+.admin-leaves-total-days {
+  color: #0f1f3a;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.admin-leaves-total-days span {
+  color: #5b6b82;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-leaves-pagination {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  color: #5b6b82;
+  font-size: 12px;
+}
+
+.admin-leaves-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-leaves-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.admin-leaves-page-number {
+  display: inline-flex;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #1d63d8;
+  border-radius: 50%;
+  color: #1750b8;
+}
+
+.admin-leaves-date-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-leaves-date-caption {
+  margin: 0 0 -2px;
+}
+
+.admin-leaves-date-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 18px;
+}
+
+.admin-leaves-date-tile {
+  display: flex;
+  width: 66px;
+  min-height: 66px;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: #eaf1ff;
+  color: #1750b8;
+}
+
+.admin-leaves-date-tile.is-today {
+  background: #1d63d8;
+  color: #fff;
+}
+
+.admin-leaves-date-tile strong { font-size: 24px; line-height: 1; }
+.admin-leaves-date-tile span { margin-top: 4px; font-size: 11px; }
+.admin-leaves-date-content { min-width: 0; flex: 1; }
+.admin-leaves-date-heading { margin: 1px 0 8px; color: #5b6b82; font-size: 12px; }
+
+.admin-leaves-date-people {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.admin-leaves-date-person {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+
+.admin-leaves-date-person .admin-leaves-avatar { width: 32px; height: 32px; font-size: 13px; }
+.admin-leaves-date-person .admin-leaves-type { margin-left: auto; }
+
 .admin-leaves-user {
   display: flex;
   align-items: center;
@@ -270,23 +505,6 @@
   font-weight: 600;
 }
 
-.admin-leaves-link {
-  color: #1750b8;
-  font-size: 14px;
-  font-weight: 500;
-  background: none;
-  border: 0;
-  padding: 10px 4px;
-  min-height: 44px;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-}
-
-.admin-leaves-link:hover {
-  text-decoration: underline;
-}
-
 /* ไทม์ไลน์ */
 .admin-leaves-timeline-scroll {
   overflow-x: auto;
@@ -355,105 +573,6 @@
   color: #5b6b82;
 }
 
-/* โมดัล */
-.admin-leaves-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  overflow-y: auto;
-  padding: 48px 16px;
-  background: rgba(15, 31, 58, 0.45);
-}
-
-.admin-leaves-modal {
-  width: 100%;
-  max-width: 540px;
-  background: #fff;
-  border-radius: 22px;
-  box-shadow: 0 24px 64px rgba(15, 31, 58, 0.25);
-}
-
-.admin-leaves-modal-body {
-  padding: 28px 28px 20px;
-}
-
-.admin-leaves-modal-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.admin-leaves-modal-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.admin-leaves-modal-user {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.admin-leaves-modal-user .admin-leaves-avatar {
-  width: 48px;
-  height: 48px;
-  font-size: 19px;
-}
-
-.admin-leaves-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.admin-leaves-summary-box {
-  border-radius: 14px;
-  padding: 12px 14px;
-  font-size: 13px;
-}
-
-.admin-leaves-summary-box strong {
-  display: block;
-  margin-top: 2px;
-  font-size: 15px;
-}
-
-.admin-leaves-entry {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 14px 2px;
-  border-bottom: 1px solid #edf1f7;
-}
-
-.admin-leaves-entry:last-child {
-  border-bottom: 0;
-}
-
-.admin-leaves-entry-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex: none;
-  border-radius: 999px;
-}
-
-.admin-leaves-modal-foot {
-  display: flex;
-  justify-content: flex-end;
-  padding: 16px 28px 24px;
-  border-top: 1px solid #edf1f7;
-}
-
 @media (max-width: 1024px) {
   .admin-leaves-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -483,23 +602,29 @@
     flex: 1 1 100%;
     min-width: 0;
   }
-  .admin-leaves-overlay {
-    padding: 24px 12px;
+  .admin-leaves-today {
+    align-items: flex-start;
+    padding: 14px;
   }
-  .admin-leaves-modal-body {
-    padding: 22px 20px 16px;
+  .admin-leaves-today-note {
+    display: none;
   }
-  .admin-leaves-modal-foot {
-    padding: 14px 20px 20px;
+  .admin-leaves-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 12px 16px;
   }
-  .admin-leaves-modal-foot .btn {
-    width: 100%;
+  .admin-leaves-date-card {
+    gap: 12px;
+    padding: 12px;
   }
-  .admin-leaves-modal-user {
+  .admin-leaves-date-tile {
+    width: 54px;
+    min-height: 58px;
+  }
+  .admin-leaves-date-person {
     flex-wrap: wrap;
-  }
-  .admin-leaves-summary-grid {
-    grid-template-columns: 1fr;
+    gap: 6px;
   }
   .admin-leaves-timeline-scroll {
     padding: 16px 16px 8px;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import ExportCsvButton from "../../components/export-csv-button";
@@ -19,11 +19,6 @@ export type LeaveRow = {
     studentId: string | null;
     shopCode: string | null;
   };
-};
-
-type AdminLeaveApiRow = Omit<LeaveRow, "start" | "end"> & {
-  startDate: string;
-  endDate: string;
 };
 
 const TYPE_LABEL: Record<LeaveRow["type"], string> = {
@@ -145,7 +140,7 @@ export default function LeavesManager({
   todayISO,
 }: {
   items: LeaveRow[];
-  view: "list" | "timeline";
+  view: "student" | "date" | "timeline";
   month: number;
   year: number;
   filters: { q: string; shopCode: string; type: "" | LeaveRow["type"] };
@@ -154,9 +149,10 @@ export default function LeavesManager({
 }) {
   const [q, setQ] = useState(filters.q);
   const [shopCode, setShopCode] = useState(filters.shopCode);
-  const [modalUserId, setModalUserId] = useState<string | null>(null);
-  const [modalItems, setModalItems] = useState<LeaveRow[] | null>(null);
-  const [modalError, setModalError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
 
   const visible = useMemo(
     () =>
@@ -171,6 +167,56 @@ export default function LeavesManager({
     for (const r of items) c[r.type] += 1;
     return c;
   }, [items]);
+
+  const todayLeaves = useMemo(
+    () => visible.filter((r) => r.start <= todayISO && r.end >= todayISO),
+    [visible, todayISO],
+  );
+  const todayPeople = new Set(todayLeaves.map((r) => r.user.id)).size;
+
+  const studentGroups = useMemo(() => {
+    const groups = new Map<string, { user: LeaveRow["user"]; leaves: LeaveRow[] }>();
+    for (const leave of visible) {
+      const group = groups.get(leave.user.id) ?? { user: leave.user, leaves: [] };
+      group.leaves.push(leave);
+      groups.set(leave.user.id, group);
+    }
+    return [...groups.values()]
+      .map((group) => {
+        const days = new Set<string>();
+        for (const leave of group.leaves) {
+          const start = leave.start < monthStart ? monthStart : leave.start;
+          const end = leave.end > monthEnd ? monthEnd : leave.end;
+          for (let date = start; date <= end; date = addDays(date, 1)) days.add(date);
+        }
+        return {
+          ...group,
+          leaves: group.leaves.sort((a, b) => a.start.localeCompare(b.start)),
+          totalDays: days.size,
+        };
+      })
+      .sort((a, b) => `${a.user.firstName} ${a.user.lastName}`.localeCompare(`${b.user.firstName} ${b.user.lastName}`, "th"));
+  }, [visible, monthStart, monthEnd]);
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(studentGroups.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageGroups = studentGroups.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const dateGroups = useMemo(() => {
+    const groups = new Map<string, LeaveRow[]>();
+    for (const leave of visible) {
+      const start = leave.start < monthStart ? monthStart : leave.start;
+      const end = leave.end > monthEnd ? monthEnd : leave.end;
+      for (let date = start; date <= end; date = addDays(date, 1)) {
+        const rows = groups.get(date) ?? [];
+        rows.push(leave);
+        groups.set(date, rows);
+      }
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, leaves]) => ({ date, leaves }));
+  }, [visible, monthStart, monthEnd]);
 
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
@@ -190,10 +236,6 @@ export default function LeavesManager({
   );
 
   // ---------- ไทม์ไลน์ ----------
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
-  const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
-
   const timeline = useMemo(() => {
     const byUser = new Map<string, { user: LeaveRow["user"]; days: Array<LeaveRow["type"] | null> }>();
     for (const r of visible) {
@@ -220,64 +262,6 @@ export default function LeavesManager({
       ? Number(todayISO.slice(8, 10))
       : null;
 
-  // ---------- โมดัล ----------
-  useEffect(() => {
-    if (!modalUserId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setModalUserId(null);
-    };
-    document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [modalUserId]);
-
-  async function openHistory(userId: string) {
-    setModalUserId(userId);
-    setModalItems(null);
-    setModalError(null);
-    try {
-      const res = await fetch(
-        `/api/admin/leaves?userId=${userId}&month=${month}&year=${year}`,
-      );
-      const body = (await res.json()) as {
-        items?: AdminLeaveApiRow[];
-        error?: { message?: string };
-      };
-      if (!res.ok) throw new Error(body?.error?.message ?? "โหลดประวัติไม่สำเร็จ");
-      if (!body.items) throw new Error("รูปแบบข้อมูลประวัติการลาไม่ถูกต้อง");
-      setModalItems(
-        body.items.map(({ startDate, endDate, ...item }) => ({
-          ...item,
-          start: startDate,
-          end: endDate,
-        })),
-      );
-    } catch (err) {
-      setModalError(err instanceof Error ? err.message : "โหลดประวัติไม่สำเร็จ");
-    }
-  }
-
-  const modalUser = modalUserId
-    ? (modalItems?.[0]?.user ?? visible.find((r) => r.user.id === modalUserId)?.user ?? null)
-    : null;
-
-  const modalStats = useMemo(() => {
-    const s = {
-      SICK: { count: 0, days: 0 },
-      PERSONAL: { count: 0, days: 0 },
-      HOLIDAY: { count: 0, days: 0 },
-    } as Record<LeaveRow["type"], { count: number; days: number }>;
-    for (const r of modalItems ?? []) {
-      s[r.type].count += 1;
-      s[r.type].days += diffDays(r.start, r.end);
-    }
-    return s;
-  }, [modalItems]);
-
   const pills: Array<{ value: "" | LeaveRow["type"]; label: string; count: number }> = [
     { value: "", label: "ทั้งหมด", count: counts.total },
     { value: "SICK", label: "ลาป่วย", count: counts.SICK },
@@ -295,10 +279,16 @@ export default function LeavesManager({
         <div className="admin-leaves-head-actions">
           <nav aria-label="สลับมุมมอง" className="admin-leaves-view">
             <Link
-              href={withParams({ ...navBase }, { view: "list" })}
-              aria-current={view === "list" ? "page" : undefined}
+              href={withParams({ ...navBase }, { view: "student" })}
+              aria-current={view === "student" ? "page" : undefined}
             >
-              รายการ
+              ตามนักศึกษา
+            </Link>
+            <Link
+              href={withParams({ ...navBase }, { view: "date" })}
+              aria-current={view === "date" ? "page" : undefined}
+            >
+              ตามวันที่
             </Link>
             <Link
               href={withParams({ ...navBase }, { view: "timeline" })}
@@ -330,14 +320,37 @@ export default function LeavesManager({
         </div>
       </div>
 
-      <div className="admin-leaves-stats">
-        <section className="card admin-leaves-stat" aria-label="ทั้งหมดเดือนนี้">
+      {view !== "timeline" && <section className="card admin-leaves-today" aria-label="สรุปการลาในวันนี้">
+        <span className="admin-leaves-today-icon" aria-hidden="true"><SunIcon /></span>
+        <div className="admin-leaves-today-content">
+          <span className="admin-leaves-today-date">วันนี้ · {fullDate(todayISO)}</span>
+          <h2>หยุด/ลาวันนี้ {todayPeople} คน</h2>
+          <div className="admin-leaves-today-people">
+            {todayLeaves.length === 0 ? (
+              <span className="muted text-sm">ไม่มีนักศึกษาหยุดหรือลาวันนี้</span>
+            ) : [...new Map(todayLeaves.map((leave) => [leave.user.id, leave.user])).values()].map((user) => {
+              const userLeaves = todayLeaves.filter((leave) => leave.user.id === user.id);
+              return (
+                <span className="admin-leaves-today-person" key={user.id}>
+                  <span className="admin-leaves-avatar" data-tone={toneOf(user.id)} aria-hidden="true">{(user.firstName || "?").charAt(0)}</span>
+                  <strong>{user.firstName} {user.lastName}</strong>
+                  {userLeaves.map((leave) => <span className="admin-leaves-type" data-type={leave.type} key={leave.id}>{TYPE_LABEL[leave.type]}</span>)}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+        <span className="admin-leaves-today-note">จากนักศึกษาทั้งหมดที่มีรายการเดือนนี้</span>
+      </section>}
+
+      {view === "student" && <div className="admin-leaves-stats">
+        <section className="card admin-leaves-stat" aria-label="หยุดหรือลาวันนี้">
           <span className="admin-leaves-stat-icon" style={{ background: "#eaf1ff", color: "#1d63d8" }} aria-hidden="true">
             <CalendarIcon />
           </span>
           <div>
-            <p className="admin-leaves-stat-label">ทั้งหมดเดือนนี้</p>
-            <p className="admin-leaves-stat-value">{counts.total} รายการ</p>
+            <p className="admin-leaves-stat-label">หยุด/ลาวันนี้</p>
+            <p className="admin-leaves-stat-value">{todayPeople} คน</p>
           </div>
         </section>
         <section className="card admin-leaves-stat" aria-label="ลาป่วย">
@@ -367,7 +380,7 @@ export default function LeavesManager({
             <p className="admin-leaves-stat-value">{counts.HOLIDAY} รายการ</p>
           </div>
         </section>
-      </div>
+      </div>}
 
       <form
         className="card admin-leaves-filter"
@@ -423,74 +436,40 @@ export default function LeavesManager({
         </div>
       </form>
 
-      {view === "list" ? (
-        <div className="card admin-leaves-table-card">
-          {visible.length === 0 ? (
-            <p className="muted px-6 py-6 text-sm">ไม่พบใบลาตามเงื่อนไข</p>
-          ) : (
-            <div className="admin-leaves-table-scroll">
-              <table className="tbl">
-                <caption className="sr-only">ใบลาและวันหยุดเดือนนี้</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">นักศึกษา</th>
-                    <th scope="col">ประเภท</th>
-                    <th scope="col">วันที่</th>
-                    <th scope="col">เหตุผล</th>
-                    <th scope="col">บันทึกเมื่อ</th>
-                    <th scope="col"><span className="sr-only">ประวัติ</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((r) => (
-                    <tr key={r.id}>
-                      <td>
-                        <span className="admin-leaves-user">
-                          <span className="admin-leaves-avatar" data-tone={toneOf(r.user.id)} aria-hidden="true">
-                            {(r.user.firstName || "?").charAt(0)}
-                          </span>
-                          <span>
-                            <span className="admin-leaves-username">
-                              {r.user.firstName} {r.user.lastName}
-                            </span>
-                            {r.user.shopCode && (
-                              <span className="admin-leaves-shopchip">{r.user.shopCode}</span>
-                            )}
-                          </span>
-                        </span>
-                      </td>
-                      <td>
-                        <span className="admin-leaves-type" data-type={r.type}>
-                          {TYPE_LABEL[r.type]}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="admin-leaves-date">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5b6b82" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ verticalAlign: "-2px", marginRight: 6 }}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
-                          {rangeLabel(r.start, r.end)}
-                          <span className="admin-leaves-daypill">
-                            {diffDays(r.start, r.end)} วัน
-                          </span>
-                        </span>
-                      </td>
-                      <td>{r.reason || "–"}</td>
-                      <td className="tabular-nums">{createdLabel(r.createdAt)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="admin-leaves-link"
-                          onClick={() => openHistory(r.user.id)}
-                        >
-                          ดูประวัติ ›
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {view === "student" ? (
+        <section className="card admin-leaves-table-card" aria-label="รายการแยกตามนักศึกษา">
+          {studentGroups.length === 0 ? <p className="muted px-6 py-6 text-sm">ไม่พบรายการลาตามเงื่อนไข</p> : (
+            <>
+              <div className="admin-leaves-table-scroll"><table className="tbl admin-leaves-student-table">
+                <caption className="sr-only">รายการลาแยกตามนักศึกษาประจำเดือนนี้</caption>
+                <thead><tr><th scope="col">นักศึกษา</th><th scope="col">วันนี้</th><th scope="col">วันหยุด / การลา</th><th scope="col">รวม</th></tr></thead>
+                <tbody>{pageGroups.map((group) => {
+                  const leavesToday = group.leaves.filter((leave) => leave.start <= todayISO && leave.end >= todayISO);
+                  return <tr key={group.user.id}>
+                    <td><span className="admin-leaves-user"><span className="admin-leaves-avatar" data-tone={toneOf(group.user.id)} aria-hidden="true">{(group.user.firstName || "?").charAt(0)}</span><span><span className="admin-leaves-username">{group.user.firstName} {group.user.lastName}</span>{group.user.shopCode && <span className="admin-leaves-shopchip">{group.user.shopCode}</span>}{group.user.studentId && <span className="admin-leaves-student-id">{group.user.studentId}</span>}</span></span></td>
+                    <td>{leavesToday.length ? <span className="admin-leaves-today-types">{leavesToday.map((leave) => <span className="admin-leaves-type" data-type={leave.type} key={leave.id}>{TYPE_LABEL[leave.type]}วันนี้</span>)}</span> : <span className="muted">–</span>}</td>
+                    <td><div className="admin-leaves-group-chips">{group.leaves.map((leave) => <span className="admin-leaves-group-entry" key={leave.id}><span className="admin-leaves-group-chip" data-type={leave.type}><strong>{TYPE_LABEL[leave.type]}</strong><span>{rangeLabel(leave.start, leave.end)} · {diffDays(leave.start, leave.end)} วัน</span></span>{leave.reason && <span className="admin-leaves-reason">{TYPE_LABEL[leave.type]}: {leave.reason}</span>}</span>)}</div></td>
+                    <td className="admin-leaves-total-days">{group.totalDays} <span>วัน</span></td>
+                  </tr>;
+                })}</tbody>
+              </table></div>
+              <div className="admin-leaves-pagination"><span>{studentGroups.length} คน · หน้า {currentPage} / {pageCount}</span><div><button type="button" className="btn btn-outline" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</button><span className="admin-leaves-page-number">{currentPage}</span><button type="button" className="btn btn-outline" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>ถัดไป</button></div></div>
+            </>
           )}
-        </div>
+        </section>
+      ) : view === "date" ? (
+        <section className="admin-leaves-date-view" aria-label="รายการหยุดและลาตามวันที่">
+          <p className="admin-leaves-date-caption">เรียงตามวันที่ · มีผู้หยุด/ลา {dateGroups.length} วัน</p>
+          {dateGroups.length === 0 ? <div className="card"><p className="muted px-6 py-6 text-sm">ไม่พบรายการลาตามเงื่อนไข</p></div> : dateGroups.map(({ date, leaves }) => {
+            const parsedDate = parseISO(date);
+            const uniquePeople = new Set(leaves.map((leave) => leave.user.id)).size;
+            const weekday = new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", weekday: "short" }).format(parsedDate);
+            return <section className="card admin-leaves-date-card" key={date}>
+              <div className={"admin-leaves-date-tile" + (date === todayISO ? " is-today" : "")}><strong>{dayNum.format(parsedDate)}</strong><span>{weekday}</span></div>
+              <div className="admin-leaves-date-content"><p className="admin-leaves-date-heading">{weekday} {fullDate(date)} · {uniquePeople} คน</p><div className="admin-leaves-date-people">{leaves.map((leave) => <div className="admin-leaves-date-person" key={date + leave.id}><span className="admin-leaves-avatar" data-tone={toneOf(leave.user.id)} aria-hidden="true">{(leave.user.firstName || "?").charAt(0)}</span><strong>{leave.user.firstName} {leave.user.lastName}</strong>{leave.user.shopCode && <span className="admin-leaves-shopchip">{leave.user.shopCode}</span>}<span className="admin-leaves-type" data-type={leave.type}>{TYPE_LABEL[leave.type]}</span></div>)}</div></div>
+            </section>;
+          })}
+        </section>
       ) : (
         <section aria-label="ไทม์ไลน์รายคน" className="card" style={{ overflow: "hidden" }}>
           <div className="flex flex-wrap items-baseline justify-between gap-2 px-6 pt-5">
@@ -566,134 +545,6 @@ export default function LeavesManager({
         </section>
       )}
 
-      {modalUserId && (
-        <div
-          className="admin-leaves-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setModalUserId(null);
-          }}
-        >
-          <div
-            className="admin-leaves-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="admin-leaves-modal-title"
-          >
-            <div className="admin-leaves-modal-body">
-              <div className="admin-leaves-modal-head">
-                <h2 id="admin-leaves-modal-title" className="admin-leaves-modal-title">
-                  ประวัติการลาและวันหยุด
-                </h2>
-                <button
-                  type="button"
-                  aria-label="ปิด"
-                  onClick={() => setModalUserId(null)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 44,
-                    height: 44,
-                    border: 0,
-                    borderRadius: 12,
-                    background: "transparent",
-                    color: "#5b6b82",
-                    fontSize: 20,
-                    cursor: "pointer",
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-
-              {modalUser && (
-                <div className="admin-leaves-modal-user">
-                  <span className="admin-leaves-avatar" data-tone={toneOf(modalUser.id)} aria-hidden="true">
-                    {(modalUser.firstName || "?").charAt(0)}
-                  </span>
-                  <div>
-                    <p className="m-0 text-[16px] font-bold">
-                      {modalUser.firstName} {modalUser.lastName}
-                    </p>
-                    <p className="muted m-0 text-[13px]">
-                      {modalUser.shopCode ?? "–"}
-                      {modalUser.studentId ? ` · ${modalUser.studentId}` : ""}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {modalError ? (
-                <p role="alert" className="leaves-alert" style={{ marginTop: 16, padding: "10px 14px", borderRadius: 12, background: "#fef2f2", color: "#991b1b", fontSize: 13 }}>
-                  {modalError}
-                </p>
-              ) : !modalItems ? (
-                <p className="muted py-6 text-center text-sm">กำลังโหลด…</p>
-              ) : (
-                <>
-                  <div className="admin-leaves-summary-grid">
-                    <div className="admin-leaves-summary-box" style={{ background: "#ffe4e6", color: "#881337" }}>
-                      ลาป่วย
-                      <strong>{modalStats.SICK.count} ครั้ง · {modalStats.SICK.days} วัน</strong>
-                    </div>
-                    <div className="admin-leaves-summary-box" style={{ background: "#e6e6fa", color: "#3b3480" }}>
-                      ลากิจ
-                      <strong>{modalStats.PERSONAL.count} ครั้ง · {modalStats.PERSONAL.days} วัน</strong>
-                    </div>
-                    <div className="admin-leaves-summary-box" style={{ background: "#dbeafe", color: "#1e3a8a" }}>
-                      วันหยุด
-                      <strong>{modalStats.HOLIDAY.count} รายการ · {modalStats.HOLIDAY.days} วัน</strong>
-                    </div>
-                  </div>
-
-                  {modalItems.length === 0 ? (
-                    <p className="muted py-6 text-center text-sm">เดือนนี้ยังไม่มีประวัติ</p>
-                  ) : (
-                    <ul className="m-0 mt-2 list-none p-0">
-                      {modalItems.map((r) => (
-                        <li key={r.id} className="admin-leaves-entry">
-                          <span
-                            className="admin-leaves-entry-icon"
-                            style={
-                              r.type === "SICK"
-                                ? { background: "#ffe4e6", color: "#be123c" }
-                                : r.type === "PERSONAL"
-                                  ? { background: "#e6e6fa", color: "#3b3480" }
-                                  : { background: "#dbeafe", color: "#1e3a8a" }
-                            }
-                            aria-hidden="true"
-                          >
-                            {r.type === "SICK" ? <HeartIcon /> : r.type === "PERSONAL" ? <BagIcon /> : <CalendarIcon />}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-[15px] font-bold">
-                              {TYPE_LABEL[r.type]}
-                              <span className="admin-leaves-daypill">
-                                {diffDays(r.start, r.end)} วัน
-                              </span>
-                            </span>
-                            <span className="muted mt-1 block text-[13px]">
-                              {r.start === r.end
-                                ? fullDate(r.start)
-                                : `${rangeLabel(r.start, r.end)} ${yearFmt.format(parseISO(r.end))}`}
-                              {r.reason ? ` · ${r.reason}` : " · –"}
-                            </span>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="admin-leaves-modal-foot">
-              <button type="button" className="btn btn-outline" onClick={() => setModalUserId(null)}>
-                ปิด
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
