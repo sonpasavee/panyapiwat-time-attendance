@@ -213,6 +213,7 @@ body {
 
 /* ตาราง */
 .tbl {
+  position: relative;
   width: 100%;
   border-collapse: collapse;
   text-align: left;

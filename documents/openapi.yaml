@@ -1,0 +1,1399 @@
+openapi: 3.1.0
+info:
+  title: Panyapiwat Time Attendance API
+  version: 1.0.0
+  summary: API สำหรับระบบบันทึกการฝึกอาชีพ
+  description: |
+    OpenAPI specification สำหรับ API ที่มีอยู่ใน Next.js App Router
+
+    สเปกนี้บันทึก response ตาม implementation ปัจจุบัน: success ส่ง JSON payload
+    โดยตรง (ไม่มี `{ ok, data }` wrapper) และ error ใช้
+    `{ error: { code, message, details? } }` โปรดอ้างอิงสัญญานี้เมื่อเชื่อมต่อ
+    client; เอกสารนี้ไม่เปลี่ยน path, business rules หรือ response ของ API
+
+    Protected endpoints ใช้ session cookie `attendance_session` และ role ตามที่
+    ระบุในแต่ละ operation. ทุก mutation ที่มี body ต้องส่ง `Origin` ซึ่ง origin
+    ต้องตรงกับ origin ของ API เพื่อป้องกัน CSRF. วันที่ทำงานใช้เขตเวลา
+    Asia/Bangkok. การลาไม่ต้องอนุมัติ และไม่มี student self-registration.
+  contact:
+    name: Project maintainers
+  license:
+    name: Proprietary
+servers:
+  - url: http://localhost:3000
+    description: Local development
+tags:
+  - name: Authentication
+  - name: Profile
+  - name: Attendance
+  - name: Money
+  - name: Leaves
+  - name: Admin users
+  - name: Admin attendance
+  - name: Admin reports
+  - name: Cron
+paths:
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      operationId: registerDisabled
+      summary: Student self-registration (disabled)
+      description: Always returns `410 REGISTRATION_DISABLED`. Student accounts are provisioned by an administrator through the import or user-management endpoints.
+      responses:
+        '410':
+          description: Self-registration is disabled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+              example:
+                error: { code: REGISTRATION_DISABLED, message: Student self-registration is disabled }
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Create a session
+      description: Student login uses student ID; administrators may use their employee code. Ten failed attempts for the same case-insensitive identifier in a 15-minute window are rate-limited.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example: { username: '68000001', password: 'initial-password' }
+      responses:
+        '200':
+          description: Authenticated. Sets the HttpOnly session cookie.
+          headers:
+            Set-Cookie:
+              description: Session cookie; HttpOnly and SameSite=Strict, Secure in production.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/LoginUser' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: Invalid username or password.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+              example:
+                error: { code: INVALID_CREDENTIALS, message: Invalid credentials }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: End the current session
+      description: Clears the session cookie. The endpoint succeeds even when there is no valid session cookie.
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      responses:
+        '200':
+          description: Session cleared.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success: { type: boolean, const: true }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/auth/change-password:
+    post:
+      tags: [Authentication]
+      operationId: changePassword
+      summary: Change the current user's password
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+            example:
+              currentPassword: current-password
+              newPassword: a-long-new-password-123
+              sessionAction: KEEP_CURRENT
+      responses:
+        '200':
+          description: Password changed. Revoked session timestamps are returned; password hashes are never returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChangePasswordResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: Session missing or current password is incorrect.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/users/me:
+    get:
+      tags: [Profile]
+      operationId: getMyProfile
+      summary: Get the current user's profile
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200':
+          description: Current user's public profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Profile]
+      operationId: updateMyProfile
+      summary: Update the current user's profile
+      description: Only the listed profile fields can be changed. Unknown fields are rejected. Supplying `gradeLevel` also updates `yearLevel` to the same value.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfilePatch' }
+      responses:
+        '200':
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/attendance/check-in:
+    post:
+      tags: [Attendance]
+      operationId: checkIn
+      summary: Check in for today
+      description: Creates today's attendance and the incoming cash/TrueMoney entries. One check-in per student per Bangkok work date is enforced. At least one money amount must be supplied; blank amount fields are omitted.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/AttendanceForm' }
+            encoding:
+              image: { contentType: image/jpeg, image/png, image/webp }
+            examples:
+              cashAndTrueMoney:
+                value:
+                  cashAmount: '150'
+                  truemoneyAmount: '30'
+                  note: Morning check-in
+      responses:
+        '201':
+          description: Attendance created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceMutationResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: A check-in already exists for today or an attendance uniqueness conflict occurred.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/attendance/check-out:
+    post:
+      tags: [Attendance]
+      operationId: checkOut
+      summary: Check out for today
+      description: Requires today's check-in. Creates outgoing cash/TrueMoney entries and records check-out time. At least one money amount must be supplied.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/AttendanceForm' }
+            encoding:
+              image: { contentType: image/jpeg, image/png, image/webp }
+      responses:
+        '200':
+          description: Attendance checked out.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceMutationResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Check-in required, already checked out, or check-out time precedes check-in.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/attendance/me:
+    get:
+      tags: [Attendance]
+      operationId: listMyAttendance
+      summary: List the current student's attendance
+      description: "`month` and `year` are optional; any missing value defaults to the current Bangkok month/year, and both are validated when provided. Results are paginated."
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/Year'
+      responses:
+        '200':
+          description: Attendance page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedAttendance' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/attendance/me/today:
+    get:
+      tags: [Attendance]
+      operationId: getTodayAttendance
+      summary: Get today's attendance state
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200':
+          description: Returns check-in/out flags, attendance or null, and money summary or null.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TodayAttendanceResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/attendance/me/monthly-summary:
+    get:
+      tags: [Attendance]
+      operationId: getMyMonthlyAttendanceSummary
+      summary: Get the current student's monthly attendance summary
+      description: Reports elapsed time between check-in and check-out; breaks are not deducted. Month and year default to the current Bangkok month/year when omitted.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/Year'
+      responses:
+        '200':
+          description: Monthly summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentMonthlyAttendanceSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/attendance/me/{id}:
+    get:
+      tags: [Attendance]
+      operationId: getMyAttendanceById
+      summary: Get one of the current student's attendance records
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Attendance record with money summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendanceMutationResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/money-tracker/me:
+    get:
+      tags: [Money]
+      operationId: getMyMoneyReport
+      summary: Get the current student's money report
+      description: Month and year default to the current Bangkok month/year when omitted.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/Year'
+      responses:
+        '200':
+          description: Month, money entries, and CASH/TRUEMONEY in/out/net totals.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyMoneyReport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/leaves:
+    get:
+      tags: [Leaves]
+      operationId: listMyLeavesAlias
+      summary: List the current student's leave records
+      description: This route is an existing alias of `GET /api/leaves/me`.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated leave records.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedLeaves' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Leaves]
+      operationId: createLeave
+      summary: Create a leave or holiday record
+      description: Leave records do not require approval. `leaveType` is preferred by the UI; the existing API also accepts the alias `type`.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeaveRequest' }
+            example: { leaveType: SICK, startDate: '2026-10-13', endDate: '2026-10-13', reason: 'ไม่สบาย' }
+      responses:
+        '201':
+          description: Leave record created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [leave]
+                properties:
+                  leave: { $ref: '#/components/schemas/Leave' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/leaves/me:
+    get:
+      tags: [Leaves]
+      operationId: listMyLeaves
+      summary: List the current student's leave records
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated leave records.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedLeaves' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/leaves/me/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Leaves]
+      operationId: getMyLeave
+      summary: Get one of the current student's leave records
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200':
+          description: Leave record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [leave]
+                properties:
+                  leave: { $ref: '#/components/schemas/Leave' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Leaves]
+      operationId: updateMyLeave
+      summary: Replace a leave record's editable fields
+      description: Sends the same full set of date/type/reason fields as create; this is not a partial-field patch. Only the owner's record can be changed.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeaveRequest' }
+      responses:
+        '200':
+          description: Updated leave record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [leave]
+                properties:
+                  leave: { $ref: '#/components/schemas/Leave' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Leaves]
+      operationId: deleteMyLeave
+      summary: Delete one of the current student's leave records
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      responses:
+        '200':
+          description: Leave record deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success: { type: boolean, const: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/users:
+    get:
+      tags: [Admin users]
+      operationId: listAdminUsers
+      summary: Search users
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: role
+          in: query
+          schema: { $ref: '#/components/schemas/Role' }
+        - name: shopCode
+          in: query
+          schema: { type: string, maxLength: 40 }
+        - name: gradeLevel
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 20 }
+        - name: q
+          in: query
+          description: Searches supported user identifiers and names.
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Matching users and pagination metadata.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedUsers' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Admin users]
+      operationId: createAdminUser
+      summary: Create a user account
+      description: ADMIN only. Students require both `studentId` and `employeeCode`. Accounts have no self-registration flow.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        '201':
+          description: User created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/users/import:
+    post:
+      tags: [Admin users]
+      operationId: importStudents
+      summary: Import student accounts
+      description: Imports 1–500 rows in one batch. The JSON body is limited to 1 MiB. Duplicate identifiers reject the batch. `employeeCode` is used as the initial password and is stored as a password hash; neither is returned as a password hash.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StudentImportRequest' }
+      responses:
+        '201':
+          description: Import completed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [importedCount]
+                properties:
+                  importedCount: { type: integer, minimum: 0 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Admin users]
+      operationId: getAdminUser
+      summary: Get a user by ID
+      security: [{ SessionCookie: [] }]
+      responses:
+        '200':
+          description: User record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Admin users]
+      operationId: updateAdminUser
+      summary: Update a user's profile, role, or active state
+      description: All fields are optional; unknown fields are rejected. `gradeLevel` also updates `yearLevel`. The service protects the last active administrator.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminUserPatch' }
+      responses:
+        '200':
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Admin users]
+      operationId: deleteAdminUser
+      summary: Delete a user without attendance or leave records
+      description: An administrator cannot delete their own account. Accounts with attendance or leave history cannot be deleted.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      responses:
+        '200':
+          description: User deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, deleted]
+                properties:
+                  id: { type: string, format: uuid }
+                  deleted: { type: boolean, const: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/users/{id}/role:
+    patch:
+      tags: [Admin users]
+      operationId: changeUserRole
+      summary: Change a user's role
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '200':
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/users/{id}/reset-password:
+    post:
+      tags: [Admin users]
+      operationId: resetUserPassword
+      summary: Reset a user's password
+      description: Returns a temporary password to the administrator. Treat the response as sensitive and deliver it securely to the user.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Origin'
+      responses:
+        '200':
+          description: Password reset. The temporary password is returned once in this response.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResetPasswordResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/attendance:
+    get:
+      tags: [Admin attendance]
+      operationId: listAdminAttendance
+      summary: Search attendance records
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: date
+          in: query
+          description: Bangkok work date; can be used with other filters.
+          schema: { type: string, format: date }
+        - name: month
+          in: query
+          description: Month filter; if either `month` or `year` is supplied, the missing value defaults to the current Bangkok month/year. If neither is supplied, no month filter is applied.
+          schema: { type: integer, minimum: 1, maximum: 12 }
+        - name: year
+          in: query
+          description: Year filter; if either `month` or `year` is supplied, the missing value defaults to the current Bangkok month/year. If neither is supplied, no month filter is applied.
+          schema: { type: integer, minimum: 2000, maximum: 2200 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [checked-in, checked-out] }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: shopCode
+          in: query
+          schema: { type: string, maxLength: 40 }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Matching attendance records.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedAttendance' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/attendance/{id}:
+    get:
+      tags: [Admin attendance]
+      operationId: getAdminAttendanceById
+      summary: Get one attendance record
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Attendance record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attendance]
+                properties:
+                  attendance: { $ref: '#/components/schemas/Attendance' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/attendance/user/{userId}:
+    get:
+      tags: [Admin attendance]
+      operationId: listAttendanceForUser
+      summary: List one user's attendance records
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Attendance page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedAttendance' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/leaves:
+    get:
+      tags: [Leaves]
+      operationId: listAdminLeaves
+      summary: Search all leave and holiday records
+      description: If neither `month` nor `year` is provided, no month filter is applied. If either is provided, the missing value defaults to the current Bangkok month/year.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/LeaveType' }
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/Year'
+        - name: userId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: shopCode
+          in: query
+          schema: { type: string, maxLength: 40 }
+      responses:
+        '200':
+          description: Matching records and pagination metadata.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedLeaves' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/reports/monthly-attendance:
+    get:
+      tags: [Admin reports]
+      operationId: getAdminMonthlyAttendanceReport
+      summary: Get the admin monthly attendance report
+      description: Month and year default independently to the current Bangkok month/year when omitted. Duration uses elapsed time between check-in and check-out; breaks are not deducted.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/Year'
+        - name: shopCode
+          in: query
+          schema: { type: string }
+        - name: userId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Monthly totals grouped by student.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMonthlyAttendanceReport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/admin/reports/money-tracker:
+    get:
+      tags: [Admin reports]
+      operationId: getAdminMoneyTrackerReport
+      summary: List money entries for a month
+      description: Results are paginated and filtered to attendance work dates in the selected Bangkok month. Month and year default to the current Bangkok month/year when omitted.
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Month'
+        - $ref: '#/components/parameters/Year'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: shopCode
+          in: query
+          schema: { type: string }
+        - name: userId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Money entry page with month/year metadata.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedAdminMoneyEntries' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/cron/expire-attendance-images:
+    get:
+      tags: [Cron]
+      operationId: expireAttendanceImages
+      summary: Expire old attendance images
+      description: Deletes attendance images older than seven days in batches. This endpoint is intended for a trusted scheduler, not a browser client.
+      security: [{ CronBearer: [] }]
+      responses:
+        '200':
+          description: Image cleanup summary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImageExpirationResult' }
+        '401':
+          description: Missing or invalid cron bearer token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: attendance_session
+      description: HttpOnly session cookie set by `POST /api/auth/login`.
+    CronBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: CRON_SECRET
+      description: "`CRON_SECRET` value configured on the server."
+  parameters:
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: Must match the API request's origin exactly (scheme, host, and port).
+      schema: { type: string, format: uri }
+      example: http://localhost:3000
+    Page:
+      name: page
+      in: query
+      description: 1-based page number.
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      description: Number of records per page; maximum 100.
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Month:
+      name: month
+      in: query
+      description: Bangkok calendar month (1-12). Behavior when omitted depends on the endpoint; see each operation description.
+      schema: { type: integer, minimum: 1, maximum: 12 }
+    Year:
+      name: year
+      in: query
+      description: Gregorian year (2000-2200). Behavior when omitted depends on the endpoint; see each operation description.
+      schema: { type: integer, minimum: 2000, maximum: 2200 }
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Invalid JSON, path/query parameters, or Zod validation failure.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Invalid request
+              details: { username: [Required] }
+    Unauthorized:
+      description: Missing or invalid session, or wrong credentials where applicable.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+          example:
+            error: { code: UNAUTHENTICATED, message: Authentication required }
+    Forbidden:
+      description: Authenticated role is insufficient, or the Origin header is missing/does not match.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+          example:
+            error: { code: FORBIDDEN, message: Forbidden }
+    NotFound:
+      description: Record not found or not owned by the current user.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+          example:
+            error: { code: NOT_FOUND, message: Record not found }
+    Conflict:
+      description: Duplicate identifiers, invalid attendance state, protected administrator, or user has linked records.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+    RateLimited:
+      description: Too many failed login attempts for this identifier.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+          example:
+            error: { code: RATE_LIMITED, message: Too many login attempts. Try again later. }
+    PayloadTooLarge:
+      description: Import body exceeds 1 MiB.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+          example:
+            error: { code: PAYLOAD_TOO_LARGE, message: Request body is too large }
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+          example:
+            error: { code: INTERNAL_ERROR, message: An unexpected error occurred }
+  schemas:
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              description: Present for Zod validation errors; field keys map to arrays of messages.
+              type: object
+              additionalProperties:
+                type: array
+                items: { type: string }
+    Role:
+      type: string
+      enum: [ADMIN, STUDENT]
+    LeaveType:
+      type: string
+      enum: [HOLIDAY, SICK, PERSONAL]
+    MoneyType:
+      type: string
+      enum: [CASH, TRUEMONEY]
+    MoneyDirection:
+      type: string
+      enum: [IN, OUT]
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 80, description: Trimmed before lookup. }
+        password: { type: string, minLength: 1, maxLength: 128, format: password }
+    LoginUser:
+      type: object
+      required: [id, firstName, lastName, username, role]
+      properties:
+        id: { type: string, format: uuid }
+        firstName: { type: string }
+        lastName: { type: string }
+        username: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 128, format: password }
+        newPassword: { type: string, minLength: 15, maxLength: 128, format: password }
+        sessionAction:
+          type: string
+          enum: [KEEP_CURRENT, REVOKE_ALL]
+          default: KEEP_CURRENT
+    ChangePasswordResult:
+      type: object
+      required: [success, sessionAction, revokedSessions]
+      properties:
+        success: { type: boolean, const: true }
+        sessionAction: { type: string, enum: [KEEP_CURRENT, REVOKE_ALL] }
+        revokedSessions:
+          type: array
+          items:
+            type: object
+            required: [createdAt]
+            properties:
+              createdAt: { type: string, format: date-time }
+    User:
+      type: object
+      description: Public user representation. Password hashes are never exposed.
+      required: [id, username, role, firstName, lastName, studentId, employeeCode, shopCode, gradeLevel, yearLevel, isActive, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        firstName: { type: string }
+        lastName: { type: string }
+        studentId: { type: [string, 'null'] }
+        employeeCode: { type: [string, 'null'] }
+        shopCode: { type: [string, 'null'] }
+        gradeLevel: { type: [integer, 'null'] }
+        yearLevel: { type: [integer, 'null'] }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProfilePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 80 }
+        lastName: { type: string, minLength: 1, maxLength: 80 }
+        gradeLevel: { type: [integer, 'null'], minimum: 1, maximum: 20 }
+        shopCode: { type: [string, 'null'], maxLength: 40 }
+    AdminUserPatch:
+      allOf:
+        - $ref: '#/components/schemas/ProfilePatch'
+        - type: object
+          additionalProperties: false
+          properties:
+            employeeCode: { type: [string, 'null'], maxLength: 40 }
+            studentId: { type: [string, 'null'], maxLength: 40 }
+            isActive: { type: boolean }
+            role: { $ref: '#/components/schemas/Role' }
+    UserCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 80 }
+        lastName: { type: string, minLength: 1, maxLength: 80 }
+        studentId: { type: [string, 'null'], minLength: 1, maxLength: 40 }
+        employeeCode: { type: [string, 'null'], minLength: 1, maxLength: 40 }
+        shopCode: { type: [string, 'null'], maxLength: 40 }
+        gradeLevel: { type: [integer, 'null'], minimum: 1, maximum: 20 }
+        role: { $ref: '#/components/schemas/Role', default: STUDENT }
+        isActive: { type: boolean, default: true }
+    StudentImportRequest:
+      type: object
+      additionalProperties: false
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: '#/components/schemas/StudentImportRow' }
+    StudentImportRow:
+      type: object
+      additionalProperties: false
+      required: [line, studentId, firstName, lastName, employeeCode]
+      properties:
+        line: { type: integer, minimum: 1 }
+        studentId: { type: string, minLength: 1, maxLength: 40 }
+        firstName: { type: string, minLength: 1, maxLength: 80 }
+        lastName: { type: string, minLength: 1, maxLength: 80 }
+        employeeCode: { type: string, minLength: 1, maxLength: 40 }
+        shopCode: { type: string, maxLength: 40 }
+        gradeLevel: { type: integer, minimum: 1, maximum: 20 }
+    AttendanceForm:
+      type: object
+      required: [image]
+      properties:
+        image: { type: string, format: binary, description: Required attendance photo. }
+        cashAmount: { $ref: '#/components/schemas/MoneyAmount' }
+        truemoneyAmount: { $ref: '#/components/schemas/MoneyAmount' }
+        note: { type: string, maxLength: 1000 }
+      description: At least one of `cashAmount` or `truemoneyAmount` must be supplied.
+    MoneyAmount:
+      type: string
+      pattern: '^\d{1,8}(\.\d{1,2})?$'
+      description: Nonnegative decimal amount with at most two decimal places; blank fields are omitted.
+      example: '150.00'
+    Attendance:
+      type: object
+      description: Attendance record. Photo URLs may be null after image retention expires.
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        workDate: { type: string, format: date }
+        checkInAt: { type: string, format: date-time }
+        checkInPhotoUrl: { type: [string, 'null'], format: uri }
+        checkInNote: { type: [string, 'null'] }
+        checkOutAt: { type: [string, 'null'], format: date-time }
+        checkOutPhotoUrl: { type: [string, 'null'], format: uri }
+        checkOutNote: { type: [string, 'null'] }
+        workMinutes: { type: [integer, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        money:
+          type: array
+          items: { $ref: '#/components/schemas/MoneyEntry' }
+        user: { $ref: '#/components/schemas/User' }
+    MoneyEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        attendanceId: { type: string, format: uuid }
+        direction: { $ref: '#/components/schemas/MoneyDirection' }
+        amount: { type: string, pattern: '^\d+\.\d{2}$', example: '150.00' }
+        moneyType: { $ref: '#/components/schemas/MoneyType' }
+        createdAt: { type: string, format: date-time }
+        attendance:
+          type: object
+          properties:
+            workDate: { type: string, format: date }
+            user: { $ref: '#/components/schemas/UserSummary' }
+    UserSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        firstName: { type: string }
+        lastName: { type: string }
+        studentId: { type: [string, 'null'] }
+        shopCode: { type: [string, 'null'] }
+    MoneyTypeSummary:
+      type: object
+      required: [in, out, spent, complete]
+      properties:
+        in: { type: string, example: '150.00' }
+        out: { type: string, example: '120.00' }
+        spent: { type: string, example: '30.00' }
+        complete: { type: boolean }
+    DailyMoneySummary:
+      type: object
+      required: [CASH, TRUEMONEY, totalSpent, complete]
+      properties:
+        CASH: { $ref: '#/components/schemas/MoneyTypeSummary' }
+        TRUEMONEY: { $ref: '#/components/schemas/MoneyTypeSummary' }
+        totalSpent: { type: string, example: '50.00' }
+        complete: { type: boolean }
+    AttendanceMutationResult:
+      type: object
+      required: [attendance, moneySummary]
+      properties:
+        attendance: { $ref: '#/components/schemas/Attendance' }
+        moneySummary: { $ref: '#/components/schemas/DailyMoneySummary' }
+    TodayAttendanceResult:
+      type: object
+      required: [checkedIn, checkedOut, attendance, moneySummary]
+      properties:
+        checkedIn: { type: boolean }
+        checkedOut: { type: boolean }
+        attendance: { oneOf: [{ $ref: '#/components/schemas/Attendance' }, { type: 'null' }] }
+        moneySummary: { oneOf: [{ $ref: '#/components/schemas/DailyMoneySummary' }, { type: 'null' }] }
+    Pagination:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+    PagedAttendance:
+      type: object
+      required: [items, pagination]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Attendance' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+    LeaveRequest:
+      type: object
+      additionalProperties: false
+      required: [startDate, endDate]
+      properties:
+        leaveType: { $ref: '#/components/schemas/LeaveType' }
+        type: { $ref: '#/components/schemas/LeaveType', description: Legacy alias for `leaveType`. }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date, description: Must be on or after startDate. }
+        reason: { type: [string, 'null'], maxLength: 1000 }
+      description: At least one of `leaveType` or `type` must be provided. If both are present, `leaveType` takes precedence.
+    Leave:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/LeaveType' }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        reason: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/UserSummary' }
+    PagedLeaves:
+      type: object
+      required: [items, pagination]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Leave' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+    PagedUsers:
+      type: object
+      required: [items, pagination]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/User' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+    MyMoneyTotals:
+      type: object
+      properties:
+        CASH:
+          type: object
+          properties:
+            in: { type: string }
+            out: { type: string }
+            net: { type: string }
+        TRUEMONEY:
+          type: object
+          properties:
+            in: { type: string }
+            out: { type: string }
+            net: { type: string }
+        net: { type: string }
+        note: { type: string }
+    MyMoneyReport:
+      type: object
+      required: [month, year, entries, totals]
+      properties:
+        month: { type: integer }
+        year: { type: integer }
+        entries: { type: array, items: { $ref: '#/components/schemas/MoneyEntry' } }
+        totals: { $ref: '#/components/schemas/MyMoneyTotals' }
+    StudentMonthlyAttendanceSummary:
+      type: object
+      properties:
+        month: { type: integer }
+        year: { type: integer }
+        attendanceDays: { type: integer }
+        completeDays: { type: integer }
+        incompleteDays: { type: integer }
+        totalSeconds: { type: integer }
+        totalMinutes: { type: integer }
+        hours: { type: integer }
+        minutes: { type: integer }
+        durationPolicy: { type: string }
+    AdminMonthlyAttendanceReport:
+      type: object
+      properties:
+        month: { type: integer }
+        year: { type: integer }
+        users:
+          type: array
+          items:
+            type: object
+            properties:
+              user: { $ref: '#/components/schemas/UserSummary' }
+              attendanceDays: { type: integer }
+              completeDays: { type: integer }
+              incompleteDays: { type: integer }
+              totalSeconds: { type: integer }
+              totalMinutes: { type: integer }
+              hours: { type: integer }
+              minutes: { type: integer }
+        totals:
+          type: object
+          properties:
+            attendanceDays: { type: integer }
+            completeDays: { type: integer }
+            incompleteDays: { type: integer }
+            totalSeconds: { type: integer }
+            durationPolicy: { type: string }
+    PagedAdminMoneyEntries:
+      type: object
+      required: [month, year, items, pagination]
+      properties:
+        month: { type: integer }
+        year: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/MoneyEntry' } }
+        pagination: { $ref: '#/components/schemas/Pagination' }
+    ResetPasswordResult:
+      type: object
+      required: [user, temporaryPassword]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        temporaryPassword: { type: string, writeOnly: true, description: Sensitive; visible only to an administrator at reset time. }
+    ImageExpirationResult:
+      type: object
+      required: [cutoff, processed, deleted, failed, skippedWithoutPublicId, hasMore]
+      properties:
+        cutoff: { type: string, format: date-time }
+        processed: { type: integer }
+        deleted: { type: integer }
+        failed: { type: integer }
+        skippedWithoutPublicId: { type: integer }
+        hasMore: { type: boolean }

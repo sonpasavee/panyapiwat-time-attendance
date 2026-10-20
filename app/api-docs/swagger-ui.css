@@ -1,0 +1,41 @@
+.swagger-page {
+  min-height: 100vh;
+  padding: 24px clamp(16px, 4vw, 56px) 48px;
+  background: #f4f7fb;
+}
+
+.swagger-page__header {
+  max-width: 1440px;
+  margin: 0 auto 20px;
+  color: #0f1f3a;
+}
+
+.swagger-page__header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.swagger-page__header p {
+  margin: 6px 0 0;
+  color: #5b6b82;
+}
+
+#swagger-ui {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+#swagger-ui .swagger-ui {
+  color: #0f1f3a;
+}
+
+#swagger-ui .swagger-ui .wrapper {
+  max-width: none;
+  padding: 0;
+}
+
+#swagger-ui .swagger-ui .scheme-container {
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgb(15 31 58 / 8%);
+}

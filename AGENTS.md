@@ -8,7 +8,7 @@ Stack: Next.js App Router + TypeScript, Tailwind, Prisma, PostgreSQL (Supabase),
 
 สิ่งที่ห้ามเปลี่ยนโดยไม่ถามผมก่อน:
 - schema.prisma ที่แนบ
-- path และ response format ของ API ในเอกสารที่แนบ ({ ok, data } / { ok:false, error:{code,message} })
+- path และ response format ของ API (สำเร็จส่ง JSON payload โดยตรง ไม่ห่อด้วย { ok, data }; ผิดพลาดส่ง { error: { code, message, details? } })
 - กฎธุรกิจ: เช็กอิน 1 ครั้ง/วัน, เงินเข้า 1 รายการตอนเช็กอิน, เงินออก 1 รายการตอนเช็กเอาท์,
   การลาไม่ต้องอนุมัติ, ไม่มี self-register (admin import รายชื่อ)
 
