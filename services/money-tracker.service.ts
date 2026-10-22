@@ -1,4 +1,5 @@
 import { monthRange } from "@/lib/time";
+import { findUserIdsByLatestEnrollment } from "@/repositories/user.repository";
 import {
   listAdminMoneyEntries as listAdminMoneyEntriesRecord,
   listMonthlyFinanceEntries,
@@ -21,6 +22,8 @@ export type FinanceUserRow = {
     lastName: string;
     studentId: string | null;
     shopCode: string | null;
+    yearLevel?: number | null;
+    section?: string | null;
   };
   inCash: string;
   inTrue: string;
@@ -49,11 +52,42 @@ export type FinanceDayRow = {
   spentTotal: string;
 };
 
+export type FinanceFilter = {
+  shopCode?: string;
+  gradeLevel?: number;
+  section?: string;
+  query?: string;
+};
+
+function matchesFinanceFilter(
+  user: FinanceUserRow["user"],
+  filter: FinanceFilter | undefined,
+) {
+  if (!filter) return true;
+
+  const needle = filter.query?.trim().toLowerCase();
+  return (
+    (!filter.shopCode || user.shopCode === filter.shopCode) &&
+    (!filter.gradeLevel || user.yearLevel === filter.gradeLevel) &&
+    (!filter.section || user.section === filter.section) &&
+    (!needle ||
+      `${user.firstName} ${user.lastName} ${user.studentId ?? ""}`
+        .toLowerCase()
+        .includes(needle))
+  );
+}
+
 // สรุปการเงินรายเดือนทั้งระบบ (หน้า /admin/finance)
 // - ใช้ไปรวมนับเฉพาะวันที่ข้อมูลครบ (มีทั้ง IN และ OUT อย่างน้อยหนึ่งประเภท)
 // - ช่องที่เว้นว่างตอนกรอก = ไม่มีแถว สูตรถือเป็น 0
-export async function getMonthlyFinance(month: number, year: number) {
-  const entries = await listMonthlyFinanceEntries(monthRange(year, month));
+// - users คืนทุกคนเพื่อทำ dropdown แต่ days ถูกกรองตาม filter เดียวกับตาราง
+export async function getMonthlyFinance(
+  month: number,
+  year: number,
+  academicTermId?: string,
+  filter?: FinanceFilter,
+) {
+  const entries = await listMonthlyFinanceEntries(monthRange(year, month), academicTermId);
 
   // จับกลุ่มตาม attendance (1 วันของ 1 คน) แล้วสรุป IN−OUT
   const byAttendance = new Map<
@@ -133,6 +167,8 @@ export async function getMonthlyFinance(month: number, year: number) {
     } else {
       row.incompleteDays += 1;
     }
+
+    if (!matchesFinanceFilter(group.user, filter)) continue;
 
     let day = days.get(group.dateISO);
     if (!day) {
@@ -297,14 +333,21 @@ export async function sumAdminMoneyEntries(
   }));
 }
 
-export function buildAdminMoneyFilter(
+export async function buildAdminMoneyFilter(
   month: number,
   year: number,
   input: {
     userId?: string;
     shopCode?: string;
+    academicTermId?: string;
+    gradeLevel?: number;
+    section?: string;
   },
 ) {
+  const hasEnrollmentFilter = Boolean(input.shopCode || input.gradeLevel || input.section);
+  const latestIds = !input.academicTermId && hasEnrollmentFilter
+    ? await findUserIdsByLatestEnrollment({ branchName: input.shopCode, yearLevel: input.gradeLevel, section: input.section })
+    : undefined;
   const attendanceFilter = {
     workDate: monthRange(year, month),
 
@@ -314,13 +357,16 @@ export function buildAdminMoneyFilter(
         }
       : {}),
 
-    ...(input.shopCode
-      ? {
-          user: {
-            shopCode: input.shopCode,
-          },
-        }
-      : {}),
+    ...(input.academicTermId
+      ? { user: { enrollments: { some: {
+          academicTermId: input.academicTermId,
+          ...(input.shopCode ? { branch: { name: input.shopCode } } : {}),
+          ...(input.gradeLevel || input.section ? { classGroup: {
+            ...(input.gradeLevel ? { yearLevel: input.gradeLevel } : {}),
+            ...(input.section ? { section: input.section } : {}),
+          } } : {}),
+        } } } }
+      : hasEnrollmentFilter ? { user: { id: { in: latestIds } } } : {}),
   };
 
   return {

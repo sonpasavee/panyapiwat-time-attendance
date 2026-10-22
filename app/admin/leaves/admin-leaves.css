@@ -573,9 +573,67 @@
   color: #5b6b82;
 }
 
+.admin-leaves-filter > * {
+  min-width: 0;
+}
+
+.admin-leaves-today-person {
+  max-width: 100%;
+}
+
+.admin-leaves-date-content,
+.admin-leaves-date-people,
+.admin-leaves-date-person {
+  min-width: 0;
+}
+
+.admin-leaves-date-person strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-leaves-timeline-scroll {
+  max-width: 100%;
+}
+
+.admin-leaves-timeline thead th:first-child,
+.admin-leaves-timeline tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #fff;
+  box-shadow: 1px 0 0 #edf1f7;
+}
+
 @media (max-width: 1024px) {
   .admin-leaves-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-leaves-head-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-leaves-view {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .admin-leaves-view::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-leaves-view a {
+    flex: none;
+    padding: 0 14px;
+    white-space: nowrap;
+  }
+
+  .admin-leaves-monthnav {
+    flex: 1 1 180px;
+    justify-content: space-between;
   }
 }
 
@@ -631,5 +689,111 @@
   }
   .admin-leaves-legend {
     padding: 12px 16px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-leaves-head-actions {
+    gap: 8px;
+  }
+
+  .admin-leaves-view {
+    width: 100%;
+  }
+
+  .admin-leaves-view a {
+    flex: 1 1 0;
+    justify-content: center;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+
+  .admin-leaves-monthnav {
+    flex: 1 1 100%;
+  }
+
+  .admin-leaves-head-actions > .btn {
+    width: 100%;
+  }
+
+  .admin-leaves-monthnav span {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .admin-leaves-filter {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .admin-leaves-filter > .btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .admin-leaves-search,
+  .admin-leaves-pills {
+    grid-column: 1 / -1;
+  }
+
+  .admin-leaves-shop {
+    flex: none;
+    min-width: 0;
+  }
+
+  .admin-leaves-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .admin-leaves-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-leaves-pill {
+    flex: none;
+    padding: 0 14px;
+    white-space: nowrap;
+  }
+
+  .admin-leaves-today-person {
+    flex-wrap: wrap;
+  }
+
+  .admin-leaves-date-person .admin-leaves-type {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-leaves-filter {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-leaves-shop {
+    grid-column: 1 / -1;
+  }
+
+  .admin-leaves-date-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-leaves-date-tile {
+    width: 100%;
+    min-height: 48px;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .admin-leaves-date-tile strong {
+    font-size: 20px;
+  }
+
+  .admin-leaves-date-tile span {
+    margin-top: 0;
   }
 }

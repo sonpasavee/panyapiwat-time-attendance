@@ -163,7 +163,7 @@ paths:
       tags: [Profile]
       operationId: updateMyProfile
       summary: Update the current user's profile
-      description: Only the listed profile fields can be changed. Unknown fields are rejected. Supplying `gradeLevel` also updates `yearLevel` to the same value.
+      description: Only the listed profile fields can be changed. Unknown fields are rejected.
       security: [{ SessionCookie: [] }]
       parameters:
         - $ref: '#/components/parameters/Origin'
@@ -229,8 +229,8 @@ paths:
     post:
       tags: [Attendance]
       operationId: checkOut
-      summary: Check out for today
-      description: Requires today's check-in. Creates outgoing cash/TrueMoney entries and records check-out time. At least one money amount must be supplied.
+      summary: Check out of the open shift
+      description: Requires an open check-in from today or the previous day (within 24 hours), so a shift started before midnight can be checked out after midnight. Creates outgoing cash/TrueMoney entries and records check-out time. At least one money amount must be supplied.
       security: [{ SessionCookie: [] }]
       parameters:
         - $ref: '#/components/parameters/Origin'
@@ -288,7 +288,7 @@ paths:
       security: [{ SessionCookie: [] }]
       responses:
         '200':
-          description: Returns check-in/out flags, attendance or null, and money summary or null.
+          description: Returns check-in/out flags, attendance or null, and money summary or null. If today has no record, an open shift from the previous day (within 24 hours) is returned so it can be checked out.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TodayAttendanceResult' }
@@ -620,7 +620,7 @@ paths:
       tags: [Admin users]
       operationId: updateAdminUser
       summary: Update a user's profile, role, or active state
-      description: All fields are optional; unknown fields are rejected. `gradeLevel` also updates `yearLevel`. The service protects the last active administrator.
+      description: All fields are optional; unknown fields are rejected. Students must keep both `studentId` and `employeeCode` and must have an enrollment (or supply `enrollment`). Changing an identifier also updates `username`. The service protects the last active administrator.
       security: [{ SessionCookie: [] }]
       parameters:
         - $ref: '#/components/parameters/Origin'
@@ -1106,7 +1106,7 @@ components:
     User:
       type: object
       description: Public user representation. Password hashes are never exposed.
-      required: [id, username, role, firstName, lastName, studentId, employeeCode, shopCode, gradeLevel, yearLevel, isActive, createdAt, updatedAt]
+      required: [id, username, role, firstName, lastName, studentId, employeeCode, shopCode, gradeLevel, yearLevel, programLevel, section, academicYear, semester, isActive, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         username: { type: string }
@@ -1115,9 +1115,13 @@ components:
         lastName: { type: string }
         studentId: { type: [string, 'null'] }
         employeeCode: { type: [string, 'null'] }
-        shopCode: { type: [string, 'null'] }
-        gradeLevel: { type: [integer, 'null'] }
+        shopCode: { type: [string, 'null'], description: 'ที่อยู่ร้านจาก enrollment' }
+        gradeLevel: { type: [integer, 'null'], description: 'เลขชั้นปีจาก enrollment (alias ของ yearLevel)' }
         yearLevel: { type: [integer, 'null'] }
+        programLevel: { type: [string, 'null'] }
+        section: { type: [string, 'null'] }
+        academicYear: { type: [integer, 'null'] }
+        semester: { type: [integer, 'null'] }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -1127,18 +1131,28 @@ components:
       properties:
         firstName: { type: string, minLength: 1, maxLength: 80 }
         lastName: { type: string, minLength: 1, maxLength: 80 }
-        gradeLevel: { type: [integer, 'null'], minimum: 1, maximum: 20 }
-        shopCode: { type: [string, 'null'], maxLength: 40 }
+    EnrollmentInput:
+      type: object
+      additionalProperties: false
+      required: [branchName, programLevel, yearLevel, section, academicYear, semester]
+      properties:
+        branchName: { type: string, minLength: 1, maxLength: 120 }
+        programLevel: { type: string, minLength: 1, maxLength: 40 }
+        yearLevel: { type: integer, minimum: 1, maximum: 20 }
+        section: { type: string, minLength: 1, maxLength: 40 }
+        academicYear: { type: integer, minimum: 2000, maximum: 2700 }
+        semester: { type: integer, minimum: 1, maximum: 3 }
     AdminUserPatch:
-      allOf:
-        - $ref: '#/components/schemas/ProfilePatch'
-        - type: object
-          additionalProperties: false
-          properties:
-            employeeCode: { type: [string, 'null'], maxLength: 40 }
-            studentId: { type: [string, 'null'], maxLength: 40 }
-            isActive: { type: boolean }
-            role: { $ref: '#/components/schemas/Role' }
+      type: object
+      additionalProperties: false
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 80 }
+        lastName: { type: string, minLength: 1, maxLength: 80 }
+        employeeCode: { type: [string, 'null'], maxLength: 40 }
+        studentId: { type: [string, 'null'], maxLength: 40 }
+        enrollment: { $ref: '#/components/schemas/EnrollmentInput' }
+        isActive: { type: boolean }
+        role: { $ref: '#/components/schemas/Role' }
     UserCreateRequest:
       type: object
       additionalProperties: false
@@ -1148,8 +1162,12 @@ components:
         lastName: { type: string, minLength: 1, maxLength: 80 }
         studentId: { type: [string, 'null'], minLength: 1, maxLength: 40 }
         employeeCode: { type: [string, 'null'], minLength: 1, maxLength: 40 }
-        shopCode: { type: [string, 'null'], maxLength: 40 }
-        gradeLevel: { type: [integer, 'null'], minimum: 1, maximum: 20 }
+        branchName: { type: [string, 'null'], minLength: 1, maxLength: 120 }
+        programLevel: { type: [string, 'null'], minLength: 1, maxLength: 40 }
+        yearLevel: { type: [integer, 'null'], minimum: 1, maximum: 20 }
+        section: { type: [string, 'null'], minLength: 1, maxLength: 40 }
+        academicYear: { type: [integer, 'null'], minimum: 2000, maximum: 2700 }
+        semester: { type: [integer, 'null'], minimum: 1, maximum: 3 }
         role: { $ref: '#/components/schemas/Role', default: STUDENT }
         isActive: { type: boolean, default: true }
     StudentImportRequest:
@@ -1165,15 +1183,20 @@ components:
     StudentImportRow:
       type: object
       additionalProperties: false
-      required: [line, studentId, firstName, lastName, employeeCode]
+      required: [line, studentId, firstName, lastName, employeeCode, branchName, programLevel, yearLevel, section, academicYear, semester]
       properties:
         line: { type: integer, minimum: 1 }
         studentId: { type: string, minLength: 1, maxLength: 40 }
+        titlePrefix: { type: string, maxLength: 40 }
         firstName: { type: string, minLength: 1, maxLength: 80 }
         lastName: { type: string, minLength: 1, maxLength: 80 }
         employeeCode: { type: string, minLength: 1, maxLength: 40 }
-        shopCode: { type: string, maxLength: 40 }
-        gradeLevel: { type: integer, minimum: 1, maximum: 20 }
+        branchName: { type: string, minLength: 1, maxLength: 120 }
+        programLevel: { type: string, minLength: 1, maxLength: 40 }
+        yearLevel: { type: integer, minimum: 1, maximum: 20 }
+        section: { type: string, minLength: 1, maxLength: 40 }
+        academicYear: { type: integer, minimum: 2000, maximum: 2700 }
+        semester: { type: integer, minimum: 1, maximum: 3 }
     AttendanceForm:
       type: object
       required: [image]

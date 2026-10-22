@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 
 type AttendanceFormProps = {
   action: "check-in" | "check-out";
+  blockedMessage?: string;
 };
 
 // โลโก้เงินสด: ธนบัตรสีเขียว (ตกแต่ง — label ของ input อ่านชื่อฟิลด์อยู่แล้ว)
@@ -34,7 +35,10 @@ function TrueMoneyLogo() {
   );
 }
 
-export default function AttendanceForm({ action }: AttendanceFormProps) {
+export default function AttendanceForm({
+  action,
+  blockedMessage,
+}: AttendanceFormProps) {
   const router = useRouter();
   const [photoName, setPhotoName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
@@ -42,6 +46,17 @@ export default function AttendanceForm({ action }: AttendanceFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isCheckIn = action === "check-in";
+
+  if (blockedMessage) {
+    return (
+      <p
+        role="status"
+        className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+      >
+        {blockedMessage}
+      </p>
+    );
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

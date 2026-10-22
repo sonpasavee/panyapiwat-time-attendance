@@ -99,6 +99,7 @@ export function formatClock(value: string | Date | null | undefined) {
 export const STATUS_TEXT: Record<DailyRowStatus, string> = {
   COMPLETE: "ครบ",
   WORKING: "กำลังทำงาน",
+  MISSED_CHECKOUT: "ไม่ได้เช็กเอาท์",
   NO_CHECKIN: "ยังไม่เช็กอิน",
   SICK: "ลาป่วย",
   PERSONAL: "ลากิจ",
@@ -111,6 +112,7 @@ const STATUS_TONE: Record<
 > = {
   COMPLETE: "green",
   WORKING: "blue",
+  MISSED_CHECKOUT: "yellow",
   NO_CHECKIN: "gray",
   SICK: "pink",
   PERSONAL: "yellow",

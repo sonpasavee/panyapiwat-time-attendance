@@ -8,13 +8,14 @@ import {
 } from "@/lib/format";
 import { monthYear } from "@/validators/api";
 import { monthRange } from "@/lib/time";
-import { listUsers } from "@/services/user.service";
+import { getAcademicTerms, listShopCodes, listClassGroupFilters, listUsers } from "@/services/user.service";
+import { buildUserFilter } from "@/services/user.service";
 import {
   buildAdminAttendanceFilter,
   countMonthlyAttendanceDays,
   listAdminAttendance,
 } from "@/services/attendance.service";
-import { listAdminLeaves } from "@/services/leave.service";
+import { buildAdminLeaveFilter, listAdminLeaves } from "@/services/leave.service";
 import {
   buildAdminMoneyFilter,
   sumAdminMoneyEntries,
@@ -23,6 +24,7 @@ import {
   amountToCents,
   summarizeDailyMoney,
 } from "@/services/money-tracker.logic";
+import { calculateShopAttendanceRates } from "@/services/shop-attendance-rate.service";
 
 import ExportCsvButton from "../components/export-csv-button";
 import ShopSelect from "./shop-select";
@@ -33,6 +35,9 @@ export const instant = false;
 type SearchParams = {
   shopCode?: string | string[];
   status?: string | string[];
+  academicTermId?: string | string[];
+  gradeLevel?: string | string[];
+  section?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
@@ -80,7 +85,13 @@ export default async function AdminOverviewPage({
 }) {
   await requireAdminPage();
   const params = await searchParams;
+  const terms = await getAcademicTerms();
+  const requestedTerm = first(params.academicTermId)?.trim();
+  const academicTermId = terms.some((term) => term.id === requestedTerm) ? requestedTerm : terms[0]?.id;
   const shopCode = first(params.shopCode)?.trim() || "";
+  const gradeRaw = first(params.gradeLevel)?.trim();
+  const gradeLevel = gradeRaw && /^\d+$/.test(gradeRaw) ? Number(gradeRaw) : undefined;
+  const section = first(params.section)?.trim() || "";
   const status = first(params.status)?.trim() || "all";
 
   const todayKey = bangkokDateKey();
@@ -89,40 +100,74 @@ export default async function AdminOverviewPage({
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const yesterdayKey = yesterday.toISOString().slice(0, 10);
   const { month: curMonth, year: curYear } = monthYear(new URLSearchParams());
+  const rosterWhere = await buildUserFilter({ role: "STUDENT" });
 
   const [students, todayAtt, todayLeaves, missedOut, yesterdayAtt, monthAttendanceDays, monthMoneyTotals] =
     await Promise.all([
-      listUsers({ role: "STUDENT", isActive: true }, 0, 500),
+      listUsers({ ...rosterWhere, isActive: true, ...(academicTermId ? { enrollments: { some: { academicTermId } } } : {}) }, 0, 500, academicTermId),
       listAdminAttendance(
-        buildAdminAttendanceFilter({ date: todayKey }),
+        await buildAdminAttendanceFilter({
+          date: todayKey,
+          shopCode,
+          gradeLevel,
+          section,
+          academicTermId,
+        }),
         0,
         1000,
         "asc",
+        academicTermId,
       ),
       listAdminLeaves(
-        { startDate: { lte: todayDate }, endDate: { gte: todayDate } },
+        {
+          ...await buildAdminLeaveFilter({
+            shopCode,
+            gradeLevel,
+            section,
+            academicTermId,
+          }),
+          startDate: { lte: todayDate },
+          endDate: { gte: todayDate },
+        },
         0,
         500,
+        academicTermId,
       ),
       listAdminAttendance(
-        buildAdminAttendanceFilter({ date: yesterdayKey, status: "checked-in" }),
+        await buildAdminAttendanceFilter({
+          date: yesterdayKey,
+          status: "checked-in",
+          shopCode,
+          gradeLevel,
+          section,
+          academicTermId,
+        }),
         0,
         100,
         "asc",
+        academicTermId,
       ),
       listAdminAttendance(
-        buildAdminAttendanceFilter({ date: yesterdayKey }),
+        await buildAdminAttendanceFilter({
+          date: yesterdayKey,
+          shopCode,
+          gradeLevel,
+          section,
+          academicTermId,
+        }),
         0,
         1000,
         "asc",
+        academicTermId,
       ),
-      countMonthlyAttendanceDays(monthRange(curYear, curMonth)),
+      countMonthlyAttendanceDays(monthRange(curYear, curMonth), academicTermId),
       sumAdminMoneyEntries(
-        buildAdminMoneyFilter(curMonth, curYear, {}),
+        await buildAdminMoneyFilter(curMonth, curYear, { academicTermId }),
       ),
     ]);
 
-  const shops = [...new Set(students.items.map((u) => u.shopCode).filter(Boolean))].sort() as string[];
+  const [shops, classGroupOptions] = await Promise.all([listShopCodes(academicTermId), listClassGroupFilters(academicTermId)]);
+  const shopOptions = shops.map((row) => row);
 
   const attByUser = new Map(todayAtt.items.map((a) => [a.userId, a]));
   const leaveByUser = new Map(todayLeaves.items.map((l) => [l.userId, l]));
@@ -139,7 +184,7 @@ export default async function AdminOverviewPage({
   };
 
   const inScope = students.items.filter(
-    (u) => !shopCode || u.shopCode === shopCode,
+    (u) => (!shopCode || u.shopCode === shopCode) && (!gradeLevel || u.yearLevel === gradeLevel) && (!section || u.section === section),
   );
 
   const allRows: Row[] = inScope.map((u) => {
@@ -195,45 +240,25 @@ export default async function AdminOverviewPage({
     }
     return Math.max(count, 1);
   })();
-  const studentShopById = new Map(
-    students.items.map((user) => [user.id, user.shopCode ?? "\u2013"]),
-  );
-  const shopCheckDays = new Map<string, number>();
-  for (const row of monthAttendanceDays) {
-    const shop = studentShopById.get(row.userId);
-    if (shop) {
-      shopCheckDays.set(shop, (shopCheckDays.get(shop) ?? 0) + row._count._all);
-    }
-  }
-  const shopStudents = new Map<string, number>();
-  for (const u of students.items) {
-    const shop = u.shopCode ?? "–";
-    shopStudents.set(shop, (shopStudents.get(shop) ?? 0) + 1);
-  }
-  const shopRates = [...shopStudents.entries()]
-    .filter(([shop]) => !shopCode || shop === shopCode)
-    .map(([shop, count]) => {
-      const days = shopCheckDays.get(shop) ?? 0;
-      const rate = Math.min(100, Math.round((days / (count * elapsedWeekdays)) * 100));
-      return { shop, rate };
-    })
-    .sort((a, b) => (a.shop < b.shop ? -1 : 1));
-  const avgRate =
-    shopRates.length === 0
-      ? 0
-      : Math.round(
-          shopRates.reduce((sum, r) => {
-            const count = shopStudents.get(r.shop) ?? 0;
-            return sum + (r.rate * count * elapsedWeekdays) / 100;
-          }, 0) /
-            Math.max(
-              1,
-              shopRates.reduce((sum, r) => sum + (shopStudents.get(r.shop) ?? 0), 0) *
-                elapsedWeekdays,
-            ) *
-            100,
-        );
+  const ratesForSelectedStudents = calculateShopAttendanceRates(inScope, monthAttendanceDays, elapsedWeekdays);
+  const shopRates = ratesForSelectedStudents.rates.filter((row) => !shopCode || row.shop === shopCode);
+  const avgRate = shopCode ? shopRates[0]?.rate ?? 0 : ratesForSelectedStudents.avgRate;
   const minRate = Math.min(...shopRates.map((r) => r.rate), 100);
+  const renderShopRate = (r: (typeof shopRates)[number]) => (
+    <div key={r.shop} className="ov-shopbar">
+      <span className="muted font-medium" title={r.shop}>{r.shop}</span>
+      <span className="ov-shopbar-track" aria-label={`อัตราเข้างาน ${r.rate}%`}>
+        <span
+          className="ov-shopbar-fill"
+          style={{
+            width: `${r.rate}%`,
+            background: r.rate === minRate && shopRates.length > 1 ? "#f59e0b" : "#1d63d8",
+          }}
+        />
+      </span>
+      <span className="text-right font-bold tabular-nums">{r.rate}%</span>
+    </div>
+  );
 
   // การเงินเดือนนี้
   let inCents = 0;
@@ -249,7 +274,10 @@ export default async function AdminOverviewPage({
     `฿${Math.round(c / 100).toLocaleString("en-US")}`;
 
   const linkBase: Record<string, string> = {
+    ...(academicTermId ? { academicTermId } : {}),
     ...(shopCode ? { shopCode } : {}),
+    ...(gradeLevel ? { gradeLevel: String(gradeLevel) } : {}),
+    ...(section ? { section } : {}),
   };
 
   const pillHref = (value: string) =>
@@ -267,7 +295,7 @@ export default async function AdminOverviewPage({
           </p>
         </div>
         <div className="ov-head-actions">
-          <ShopSelect value={shopCode} options={shops} baseParams={status !== "all" ? { status } : {}} />
+          <ShopSelect value={shopCode} options={shopOptions} termId={academicTermId ?? ""} terms={terms} baseParams={{ ...(academicTermId ? { academicTermId } : {}), ...(status !== "all" ? { status } : {}) }} gradeLevel={gradeLevel ? String(gradeLevel) : ""} section={section} classGroupOptions={classGroupOptions} />
           <Link href={`/admin/attendance?date=${todayKey}`} className="ov-datelink">
             {dateLabel} (วันนี้)
           </Link>
@@ -453,24 +481,16 @@ export default async function AdminOverviewPage({
           <section aria-label="อัตราเข้างานรายร้าน" className="card card-pad">
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="m-0 text-[17px] font-semibold">อัตราเข้างานรายร้าน</h2>
-              <span className="text-[13px] muted">เฉลี่ย {avgRate}% เดือนนี้</span>
+              <span className="text-[13px] muted">{shopRates.length} ร้าน · เฉลี่ย {avgRate}%</span>
             </div>
             <div className="mt-2">
-              {shopRates.map((r) => (
-                <div key={r.shop} className="ov-shopbar">
-                  <span className="muted font-medium">{r.shop}</span>
-                  <span className="ov-shopbar-track">
-                    <span
-                      className="ov-shopbar-fill"
-                      style={{
-                        width: `${r.rate}%`,
-                        background: r.rate === minRate && shopRates.length > 1 ? "#f59e0b" : "#1d63d8",
-                      }}
-                    />
-                  </span>
-                  <span className="text-right font-bold tabular-nums">{r.rate}%</span>
-                </div>
-              ))}
+              {shopRates.length === 0 ? (
+                <p className="muted py-3 text-sm">ไม่มีข้อมูลร้านในตัวกรองนี้</p>
+              ) : (
+                <>
+                  {shopRates.slice(0, 5).map(renderShopRate)}
+                </>
+              )}
             </div>
           </section>
 

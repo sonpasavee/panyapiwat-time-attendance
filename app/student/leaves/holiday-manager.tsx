@@ -155,6 +155,7 @@ export default function HolidayManager({
   }, [viewY, viewM]);
 
   function toggleDate(iso: string) {
+    if (iso < todayISO) return;
     setSelected((current) => {
       const next = current.includes(iso)
         ? current.filter((d) => d !== iso)
@@ -167,7 +168,7 @@ export default function HolidayManager({
     setSelected((current) => {
       const next = new Set(current);
       for (const cell of cells) {
-        if (!cell || savedSet.has(cell)) continue;
+        if (!cell || savedSet.has(cell) || cell < todayISO) continue;
         const dow = new Date(`${cell}T00:00:00Z`).getUTCDay();
         if (dow === 0 || dow === 6) next.add(cell);
       }
@@ -177,8 +178,15 @@ export default function HolidayManager({
 
   async function saveHolidays() {
     if (selected.length === 0 || saving) return;
+    if (selected.some((day) => day < todayISO)) {
+      setError("ไม่สามารถบันทึกวันหยุดย้อนหลังได้");
+      return;
+    }
+
     setSaving(true);
     setError(null);
+    const createdIds: string[] = [];
+
     try {
       const groups = groupConsecutive([...selected].sort());
       for (const group of groups) {
@@ -191,8 +199,14 @@ export default function HolidayManager({
             endDate: group[group.length - 1],
           }),
         });
-        if (!response.ok)
-          throw new Error(await readError(response, "บันทึกวันหยุดไม่สำเร็จ"));
+        const body = (await response.json().catch(() => null)) as {
+          error?: { message?: string };
+          leave?: { id?: string };
+        } | null;
+        if (!response.ok) {
+          throw new Error(body?.error?.message ?? "บันทึกวันหยุดไม่สำเร็จ");
+        }
+        if (body?.leave?.id) createdIds.push(body.leave.id);
       }
       const labels = groupConsecutive([...selected].sort())
         .map((g) => rangeLabel(g[0], g[g.length - 1]))
@@ -204,6 +218,12 @@ export default function HolidayManager({
       setPicking(false);
       router.refresh();
     } catch (err) {
+      // ถ้าบันทึกได้บางกลุ่มแล้วเกิด error ให้ลบกลุ่มที่สำเร็จเพื่อไม่ให้กดซ้ำแล้วข้อมูลซ้ำ
+      await Promise.allSettled(
+        createdIds.map((id) =>
+          fetch(`/api/leaves/me/${id}`, { method: "DELETE" }),
+        ),
+      );
       setError(err instanceof Error ? err.message : "บันทึกวันหยุดไม่สำเร็จ");
     } finally {
       setSaving(false);
@@ -291,7 +311,7 @@ export default function HolidayManager({
                     className="leaves-cal-day"
                     data-selected={selectedSet.has(iso)}
                     data-today={iso === todayISO}
-                    disabled={savedSet.has(iso)}
+                    disabled={savedSet.has(iso) || iso < todayISO}
                     title={savedSet.has(iso) ? "บันทึกวันหยุดแล้ว" : undefined}
                     aria-pressed={selectedSet.has(iso)}
                     aria-label={`${Number(iso.slice(8, 10))} ${monthLabel(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)))}`}

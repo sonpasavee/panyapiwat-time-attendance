@@ -1,14 +1,18 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { currentEnrollmentSelect, enrollmentSelectForTerm, withEnrollmentView } from "@/repositories/enrollment-view";
 
 export function listMonthlyFinanceEntries(range: {
   gte: Date;
   lt: Date;
-}) {
+}, academicTermId?: string) {
   return prisma.moneyEntry.findMany({
     where: {
       attendance: {
-        user: { role: "STUDENT" },
+        user: {
+          role: "STUDENT",
+          ...(academicTermId ? { enrollments: { some: { academicTermId } } } : {}),
+        },
         workDate: range,
       },
     },
@@ -26,14 +30,20 @@ export function listMonthlyFinanceEntries(range: {
               firstName: true,
               lastName: true,
               studentId: true,
-              shopCode: true,
+              ...(academicTermId ? enrollmentSelectForTerm(academicTermId) : currentEnrollmentSelect),
             },
           },
         },
       },
     },
-    take: 20000,
-  });
+    orderBy: { createdAt: "asc" },
+  }).then((entries) => entries.map((entry) => ({
+    ...entry,
+    attendance: {
+      ...entry.attendance,
+      user: withEnrollmentView(entry.attendance.user),
+    },
+  })));
 }
 
 export function listMyMoneyEntries(
@@ -81,7 +91,7 @@ export async function listAdminMoneyEntries(
                 firstName: true,
                 lastName: true,
                 studentId: true,
-                shopCode: true,
+                ...currentEnrollmentSelect,
               },
             },
           },
@@ -93,7 +103,16 @@ export async function listAdminMoneyEntries(
     }),
     prisma.moneyEntry.count({ where }),
   ]);
-  return { items, total };
+  return {
+    items: items.map((item) => ({
+      ...item,
+      attendance: {
+        ...item.attendance,
+        user: withEnrollmentView(item.attendance.user),
+      },
+    })),
+    total,
+  };
 }
 
 export function sumAdminMoneyEntries(where: Prisma.MoneyEntryWhereInput) {

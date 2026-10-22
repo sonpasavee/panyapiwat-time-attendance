@@ -236,7 +236,7 @@ npm run dev
 | Login ได้ | ต้องมีบัญชีที่สร้างไว้แล้วเท่านั้น (ไม่มี self-register) |
 | เช็กอิน/เช็กเอาท์ได้ | ต้องตั้งค่า Cloudinary ครบทั้ง 3 ตัวแปรก่อน จึงจะอัปโหลดรูปได้ |
 
-**สิ่งที่ผู้จัดทำเอกสารตรวจแล้ว:** รัน `npm test` (14/14 ผ่าน), `npx tsc --noEmit` (ผ่าน), `npm run lint` (0 error, 3 warning ที่มีอยู่เดิม), `npx prisma validate` (schema valid), `npx prisma -v` (โหลด config จาก `prisma7.config.ts`)
+**สิ่งที่ผู้จัดทำเอกสารตรวจแล้ว:** รัน `npm test` (ผ่านทั้งหมด), `npx tsc --noEmit` (ผ่าน), `npm run lint` (0 error, 3 warning ที่มีอยู่เดิม), `npx prisma validate` (schema valid), `npx prisma -v` (โหลด config จาก `prisma7.config.ts`)
 
 **สิ่งที่ยังไม่ได้ตรวจ:** `npm run build`, การเชื่อมต่อฐานข้อมูลจริง, การอัปโหลด Cloudinary จริง และการรัน cron (จะแตะข้อมูล/บริการภายนอก จึงไม่รันในงานเอกสารนี้)
 

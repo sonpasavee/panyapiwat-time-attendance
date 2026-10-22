@@ -1,24 +1,30 @@
 
 import { ApiError } from "@/lib/api";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { hashPassword } from "@/lib/auth";
 import { randomBytes } from "node:crypto";
 import {
   countUserAttendance,
   countUserLeaves,
   createUserByAdmin as createUserRecord,
-  deleteUser,
-  deleteUserSessions,
+  createUserAndEnrollment,
+  deleteUserWithRelations,
   findConflictingUserIdentifiers,
   findUserById,
   findUserProfile as findUserProfileRecord,
+  findUserProfileForTerm,
+  listAcademicTerms as listAcademicTermRecords,
   findUserForDeletion,
   findUserForPasswordReset,
   listDistinctShopCodes,
+  listClassGroupFilters as listClassGroupFilterRecords,
+  findUserIdsByLatestEnrollment,
   listUsers as listUserRecords,
   updatePasswordAndRevokeSessions,
   updateUserProfile as updateUserProfileRecord,
   withSerializableAdminUserTransaction,
   type AdminUserUpdateInput,
+  type UserEnrollmentInput,
 } from "@/repositories/user.repository";
 
 // ============================================
@@ -29,8 +35,16 @@ import {
 // 2. Get User Profile
 // ============================================
 
-export function getUserProfile(id: string) {
-  return findUserProfileRecord(id);
+export function getUserProfile(id: string, academicTermId?: string) {
+  return academicTermId ? findUserProfileForTerm(id, academicTermId) : findUserProfileRecord(id);
+}
+
+export function getAcademicTerms() {
+  return listAcademicTermRecords();
+}
+
+export function listClassGroupFilters(academicTermId?: string) {
+  return listClassGroupFilterRecords(academicTermId);
 }
 
 // ============================================
@@ -42,8 +56,6 @@ export function updateUserProfile(
   input: {
     firstName?: string;
     lastName?: string;
-    gradeLevel?: number | null;
-    shopCode?: string | null;
   },
 ) {
   return updateUserProfileRecord(id, input);
@@ -57,16 +69,17 @@ export async function listUsers(
   where: Parameters<typeof listUserRecords>[0],
   skip: number,
   take: number,
+  academicTermId?: string,
 ) {
-  return listUserRecords(where, skip, take);
+  return listUserRecords(where, skip, take, academicTermId);
 }
 
 // ============================================
 // 5. Get User By ID
 // ============================================
 
-export async function getUserById(id: string) {
-  const user = await findUserById(id);
+export async function getUserById(id: string, academicTermId?: string) {
+  const user = await findUserById(id, academicTermId);
 
   if (!user) {
     throw new ApiError(
@@ -91,7 +104,12 @@ export async function updateUserByAdmin(
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await withSerializableAdminUserTransaction(
-        async ({ findTarget, countOtherActiveAdmins, updateTarget }) => {
+        async ({
+          findTarget,
+          countOtherActiveAdmins,
+          findConflictingIdentifiers,
+          updateTarget,
+        }) => {
           const target = await findTarget(id);
 
           if (!target) {
@@ -133,17 +151,79 @@ export async function updateUserByAdmin(
             }
           }
 
-          return updateTarget(id, input);
+          const nextStudentId =
+            input.studentId === undefined
+              ? target.studentId
+              : input.studentId?.trim() || null;
+          const nextEmployeeCode =
+            input.employeeCode === undefined
+              ? target.employeeCode
+              : input.employeeCode?.trim() || null;
+
+          if (nextRole === "STUDENT" && (!nextStudentId || !nextEmployeeCode)) {
+            throw new ApiError(
+              400,
+              "นักศึกษาต้องมีทั้งรหัสนักศึกษาและรหัสพนักงาน",
+              "VALIDATION_ERROR",
+            );
+          }
+
+          if (
+            nextRole === "STUDENT" &&
+            target._count.enrollments === 0 &&
+            !input.enrollment
+          ) {
+            throw new ApiError(
+              400,
+              "นักศึกษาต้องมีข้อมูลการลงทะเบียน/สาขาฝึกงาน",
+              "ENROLLMENT_REQUIRED",
+            );
+          }
+
+          // ADMIN รุ่นเก่าอาจมี username แต่ไม่มี studentId/employeeCode จึงคง username เดิมไว้ได้
+          const nextUsername =
+            nextStudentId ?? nextEmployeeCode ?? target.username;
+          const identifiers = [
+            ...new Set(
+              [nextUsername, nextStudentId, nextEmployeeCode].filter(
+                (value): value is string => Boolean(value),
+              ),
+            ),
+          ];
+          const conflicting = await findConflictingIdentifiers(identifiers, id);
+          if (conflicting) {
+            throw new ApiError(
+              409,
+              "รหัสซ้ำกับบัญชีที่มีอยู่ในระบบ",
+              "USER_CONFLICT",
+            );
+          }
+
+          return updateTarget(id, {
+            ...input,
+            studentId: nextStudentId,
+            employeeCode: nextEmployeeCode,
+            username: nextUsername,
+            ...(nextRole === "ADMIN" ? { enrollment: undefined } : {}),
+          });
         },
       );
     } catch (error) {
-      const isSerializationConflict =
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "P2034";
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? (error as { code?: unknown }).code
+          : undefined;
 
-      if (isSerializationConflict && attempt < 2) continue;
+      if (code === "P2034" && attempt < 2) continue;
+
+      if (code === "P2002") {
+        throw new ApiError(
+          409,
+          "รหัสซ้ำกับบัญชีที่มีอยู่ในระบบ",
+          "USER_CONFLICT",
+        );
+      }
+
       throw error;
     }
   }
@@ -183,8 +263,12 @@ export async function createUserByAdmin(input: {
   lastName: string;
   studentId?: string | null;
   employeeCode?: string | null;
-  shopCode?: string | null;
-  gradeLevel?: number | null;
+  branchName?: string | null;
+  programLevel?: string | null;
+  yearLevel?: number | null;
+  section?: string | null;
+  academicYear?: number | null;
+  semester?: number | null;
   role?: "ADMIN" | "STUDENT";
   isActive?: boolean;
 }) {
@@ -222,20 +306,28 @@ export async function createUserByAdmin(input: {
   }
 
   const initialPassword = employeeCode ?? studentId!;
-
-  return createUserRecord({
+  const userData = {
     username,
     studentId,
     employeeCode,
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
-    shopCode: input.shopCode?.trim() || null,
-    gradeLevel: input.gradeLevel ?? null,
-    yearLevel: input.gradeLevel ?? null,
     passwordHash: await hashPassword(initialPassword),
     role,
     isActive: input.isActive ?? true,
-  });
+  };
+  if (role === "STUDENT") {
+    const enrollment: UserEnrollmentInput = {
+      branchName: input.branchName!.trim(),
+      programLevel: input.programLevel!.trim(),
+      yearLevel: input.yearLevel!,
+      section: input.section!.trim(),
+      academicYear: input.academicYear!,
+      semester: input.semester!,
+    };
+    return createUserAndEnrollment(userData, enrollment);
+  }
+  return createUserRecord(userData);
 }
 
 // ============================================
@@ -268,8 +360,25 @@ export async function deleteUserByAdmin(id: string, actorId: string) {
     );
   }
 
-  await deleteUserSessions(id);
-  await deleteUser(id);
+  try {
+    await deleteUserWithRelations(id);
+  } catch (error) {
+    // กันกรณีมีข้อมูลที่อ้างถึงผู้ใช้ถูกสร้างหลังการตรวจสอบก่อนลบ -> FK ยัง Restrict อยู่
+    // ตรวจจาก code โดยตรงเพราะ Prisma 7 ผ่าน driver adapter อาจไม่ใช่ instance ของ PrismaClientKnownRequestError
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: unknown }).code === "P2003"
+    ) {
+      throw new ApiError(
+        409,
+        "ไม่สามารถลบผู้ใช้นี้ได้ เนื่องจากยังมีข้อมูลที่เกี่ยวข้องอยู่",
+        "USER_HAS_RECORDS",
+      );
+    }
+    throw error;
+  }
 
   return { id, deleted: true };
 }
@@ -298,10 +407,10 @@ export async function resetUserPassword(id: string) {
 // 12. List Distinct Shop Codes (ตัวเลือก dropdown รหัสร้าน)
 // ============================================
 
-export async function listShopCodes() {
-  const rows = await listDistinctShopCodes();
+export async function listShopCodes(academicTermId?: string) {
+  const rows = await listDistinctShopCodes(academicTermId);
   return rows
-    .map((row) => row.shopCode?.trim() ?? "")
+    .map((row) => row.name.trim())
     .filter((code) => code.length > 0);
 }
 
@@ -309,58 +418,88 @@ export async function listShopCodes() {
 // 8. Build User Filter
 // ============================================
 
-export function buildUserFilter(input: {
+export async function buildUserFilter(input: {
   role?: "STUDENT" | "ADMIN";
   shopCode?: string;
   gradeLevel?: number;
+  section?: string;
+  academicTermId?: string;
   query?: string;
 }) {
-  return {
-    ...(input.role
-      ? { role: input.role }
-      : {}),
+  const conditions: Prisma.UserWhereInput[] = [];
 
-    ...(input.shopCode
-      ? { shopCode: input.shopCode }
-      : {}),
+  if (input.role) {
+    conditions.push({ role: input.role });
+  }
 
-    ...(input.gradeLevel
-      ? { gradeLevel: input.gradeLevel }
-      : {}),
+  if (input.academicTermId) {
+    const enrollmentFilter: Prisma.StudentEnrollmentWhereInput = {
+      academicTermId: input.academicTermId,
+      ...(input.shopCode ? { branch: { name: input.shopCode } } : {}),
+      ...(input.gradeLevel || input.section
+        ? {
+            classGroup: {
+              ...(input.gradeLevel ? { yearLevel: input.gradeLevel } : {}),
+              ...(input.section ? { section: input.section } : {}),
+            },
+          }
+        : {}),
+    };
 
-    ...(input.query
-      ? {
-          OR: [
-            {
-              username: {
-                contains: input.query,
-                mode: "insensitive" as const,
-              },
-            },
-            {
-              firstName: {
-                contains: input.query,
-                mode: "insensitive" as const,
-              },
-            },
-            {
-              lastName: {
-                contains: input.query,
-                mode: "insensitive" as const,
-              },
-            },
-            {
-              studentId: {
-                contains: input.query,
-              },
-            },
-            {
-              employeeCode: {
-                contains: input.query,
-              },
-            },
-          ],
-        }
-      : {}),
-  };
+    if (input.role === "STUDENT") {
+      conditions.push({ enrollments: { some: enrollmentFilter } });
+    } else if (input.role !== "ADMIN") {
+      // ADMIN ไม่มี enrollment จึงต้องไม่ถูกกรองออกจากหน้ารวม
+      conditions.push({
+        OR: [
+          { role: "ADMIN" },
+          { enrollments: { some: enrollmentFilter } },
+        ],
+      });
+    }
+  } else if (input.shopCode || input.gradeLevel || input.section) {
+    const latestEnrollmentUserIds = await findUserIdsByLatestEnrollment({
+      branchName: input.shopCode,
+      yearLevel: input.gradeLevel,
+      section: input.section,
+    });
+    conditions.push({ id: { in: latestEnrollmentUserIds } });
+  }
+
+  if (input.query) {
+    conditions.push({
+      OR: [
+        {
+          username: {
+            contains: input.query,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          firstName: {
+            contains: input.query,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          lastName: {
+            contains: input.query,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          studentId: {
+            contains: input.query,
+          },
+        },
+        {
+          employeeCode: {
+            contains: input.query,
+          },
+        },
+      ],
+    });
+  }
+
+  return conditions.length > 0 ? { AND: conditions } : {};
 }

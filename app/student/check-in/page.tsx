@@ -1,6 +1,8 @@
 import { requireStudentPage } from "@/lib/page-auth";
 import { formatMinutes, formatSpent, formatThaiHeader, formatTime } from "@/lib/format";
+import { bangkokWorkDate } from "@/lib/time";
 import { getTodayAttendance } from "@/services/attendance.service";
+import { getLeaveForDate } from "@/services/leave.service";
 import { summarizeDailyMoney } from "@/services/money-tracker.logic";
 
 import AttendanceForm from "../../components/attendance-form";
@@ -129,6 +131,12 @@ export default async function StudentCheckInPage() {
   const today = await getTodayAttendance(session.id);
   const checkedIn = !!today;
   const checkedOut = !!today?.checkOutAt;
+  const leave = await getLeaveForDate(
+    session.id,
+    today?.workDate ?? bangkokWorkDate(),
+  );
+  const leaveLabel =
+    leave?.type === "SICK" ? "ลาป่วย" : leave?.type === "PERSONAL" ? "ลากิจ" : "วันหยุด";
   const money = summarizeDailyMoney(today?.money ?? []);
   const cashSpent = formatSpent(money.CASH.spent);
   const trueSpent = formatSpent(money.TRUEMONEY.spent);
@@ -156,7 +164,11 @@ export default async function StudentCheckInPage() {
             บันทึกเวลาเข้า–ออกงานพร้อมรูปถ่ายและเงินส่วนตัว
           </p>
         </div>
-        {checkedOut ? (
+        {!checkedIn && leave ? (
+          <span className="inline-flex min-h-[36px] items-center rounded-full bg-[#fef3c7] px-4 text-[13px] font-semibold text-[#78350f]">
+            วันนี้{leaveLabel}
+          </span>
+        ) : checkedOut ? (
           <span className="inline-flex min-h-[36px] items-center rounded-full bg-[#dcfce7] px-4 text-[13px] font-semibold text-[#14532d]">
             บันทึกครบแล้ว
           </span>
@@ -320,7 +332,17 @@ export default async function StudentCheckInPage() {
         </section>
       )}
 
-      {checkedOut ? (
+      {leave ? (
+        <Card labelledBy="form-h" className="card-pad">
+          <h2 id="form-h" className="m-0 text-[19px] font-semibold">
+            วันนี้{leaveLabel}
+          </h2>
+          <AttendanceForm
+            action={!checkedIn ? "check-in" : "check-out"}
+            blockedMessage={`วันนี้มีรายการ${leaveLabel} จึงไม่สามารถเช็กอินหรือเช็กเอาท์ได้`}
+          />
+        </Card>
+      ) : checkedOut ? (
         <div
           role="status"
           className="flex items-center gap-3.5 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] p-5"

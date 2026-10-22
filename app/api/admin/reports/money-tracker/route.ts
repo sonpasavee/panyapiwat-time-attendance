@@ -15,9 +15,10 @@ export async function GET(request: Request) {
     const userId = query.has("userId")
       ? idSchema.parse(query.get("userId"))
       : undefined;
-    const where = buildAdminMoneyFilter(month, year, {
+    const where = await buildAdminMoneyFilter(month, year, {
       userId,
       shopCode: query.get("shopCode") ?? undefined,
+      academicTermId: query.get("academicTermId") ?? undefined,
     });
     const { items, total } = await listAdminMoneyEntries(where, skip, pageSize);
     return json({

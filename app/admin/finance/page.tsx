@@ -8,6 +8,7 @@ import {
   centsToAmount,
 } from "@/services/money-tracker.logic";
 import { getMonthlyFinance } from "@/services/money-tracker.service";
+import { getAcademicTerms, listClassGroupFilters } from "@/services/user.service";
 
 import ExportMoneyButton from "./export-money-button";
 import "./finance.css";
@@ -20,6 +21,9 @@ type SearchParams = {
   year?: string | string[];
   q?: string | string[];
   shopCode?: string | string[];
+  academicTermId?: string | string[];
+  gradeLevel?: string | string[];
+  section?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
@@ -84,10 +88,16 @@ export default async function AdminFinancePage({
 }) {
   await requireAdminPage();
   const params = await searchParams;
+  const terms = await getAcademicTerms();
+  const requestedTerm = str(params.academicTermId);
+  const academicTermId = terms.some((term) => term.id === requestedTerm) ? requestedTerm : terms[0]?.id;
 
   const view = first(params.view) === "daily" ? "daily" : "monthly";
   const q = str(params.q) ?? "";
   const shopCode = str(params.shopCode) ?? "";
+  const gradeRaw = str(params.gradeLevel);
+  const gradeLevel = gradeRaw && /^\d+$/.test(gradeRaw) ? Number(gradeRaw) : undefined;
+  const section = str(params.section) ?? "";
   const { month, year } = monthYear(
     new URLSearchParams({
       ...(str(params.month) ? { month: str(params.month)! } : {}),
@@ -95,12 +105,22 @@ export default async function AdminFinancePage({
     }),
   );
 
-  const { users, days } = await getMonthlyFinance(month, year);
+  const [{ users, days }, classGroupOptions] = await Promise.all([
+    getMonthlyFinance(month, year, academicTermId, {
+      shopCode: shopCode || undefined,
+      gradeLevel,
+      section: section || undefined,
+      query: q || undefined,
+    }),
+    listClassGroupFilters(academicTermId),
+  ]);
 
   const needle = q.toLowerCase();
   const matched = users.filter(
     (r) =>
       (!shopCode || r.user.shopCode === shopCode) &&
+      (!gradeLevel || r.user.yearLevel === gradeLevel) &&
+      (!section || r.user.section === section) &&
       (!needle ||
         `${r.user.firstName} ${r.user.lastName} ${r.user.studentId ?? ""}`
           .toLowerCase()
@@ -121,6 +141,9 @@ export default async function AdminFinancePage({
     year: String(year),
     ...(q ? { q } : {}),
     ...(shopCode ? { shopCode } : {}),
+    ...(gradeLevel ? { gradeLevel: String(gradeLevel) } : {}),
+    ...(section ? { section } : {}),
+    ...(academicTermId ? { academicTermId } : {}),
   };
 
   const prev = shiftMonth(month, year, -1);
@@ -260,6 +283,14 @@ export default async function AdminFinancePage({
         <input type="hidden" name="view" value={view} />
         <input type="hidden" name="month" value={month} />
         <input type="hidden" name="year" value={year} />
+        {terms.length > 0 && (
+          <div className="fin-shop">
+            <label htmlFor="fin-term" className="sr-only">ภาคเรียน</label>
+            <select id="fin-term" name="academicTermId" className="input" defaultValue={academicTermId}>
+              {terms.map((term) => <option key={term.id} value={term.id}>ภาค {term.semester}/{term.academicYear}</option>)}
+            </select>
+          </div>
+        )}
         <div className="fin-search">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2" />
@@ -283,6 +314,20 @@ export default async function AdminFinancePage({
             {shopOptions.map((code) => (
               <option key={code} value={code}>{code}</option>
             ))}
+          </select>
+        </div>
+        <div className="fin-shop">
+          <label htmlFor="fin-grade" className="sr-only">ชั้นปี</label>
+          <select id="fin-grade" name="gradeLevel" className="input" defaultValue={gradeLevel ?? ""}>
+            <option value="">ทุกชั้นปี</option>
+            {[...new Set(classGroupOptions.map((group) => group.yearLevel))].sort((a, b) => a - b).map((level) => <option key={level} value={level}>ปี {level}</option>)}
+          </select>
+        </div>
+        <div className="fin-shop">
+          <label htmlFor="fin-section" className="sr-only">ห้อง</label>
+          <select id="fin-section" name="section" className="input" defaultValue={section}>
+            <option value="">ทุกห้อง</option>
+            {[...new Set(classGroupOptions.filter((group) => !gradeLevel || group.yearLevel === gradeLevel).map((group) => group.section))].sort().map((room) => <option key={room} value={room}>ห้อง {room}</option>)}
           </select>
         </div>
         <button type="submit" className="btn btn-primary">ค้นหา</button>
@@ -355,7 +400,7 @@ export default async function AdminFinancePage({
                         </td>
                         <td>
                           <Link
-                            href={`/admin/finance/${r.user.id}?month=${month}&year=${year}`}
+                            href={`/admin/finance/${r.user.id}?month=${month}&year=${year}${academicTermId ? `&academicTermId=${encodeURIComponent(academicTermId)}` : ""}`}
                             className="fin-link"
                           >
                             ดูรายละเอียด ›

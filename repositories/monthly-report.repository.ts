@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { currentEnrollmentSelect, enrollmentSelectForTerm, withEnrollmentView } from "@/repositories/enrollment-view";
+import { findUserIdsByLatestEnrollment } from "@/repositories/user.repository";
 
 export function listMyMonthlyAttendance(
   userId: string,
@@ -10,14 +12,19 @@ export function listMyMonthlyAttendance(
   });
 }
 
-export function listAdminMonthlyAttendance(
+export async function listAdminMonthlyAttendance(
   range: { gte: Date; lt: Date },
-  filter: { shopCode?: string; userId?: string },
+  filter: { shopCode?: string; userId?: string; academicTermId?: string },
 ) {
+  const latestIds = !filter.academicTermId && filter.shopCode
+    ? await findUserIdsByLatestEnrollment({ branchName: filter.shopCode })
+    : undefined;
   return prisma.attendance.findMany({
     where: {
       workDate: range,
-      ...(filter.shopCode ? { user: { shopCode: filter.shopCode } } : {}),
+      ...(filter.academicTermId
+        ? { user: { enrollments: { some: { academicTermId: filter.academicTermId, ...(filter.shopCode ? { branch: { name: filter.shopCode } } : {}) } } } }
+        : latestIds ? { userId: { in: latestIds } } : {}),
       ...(filter.userId ? { userId: filter.userId } : {}),
     },
     include: {
@@ -28,9 +35,9 @@ export function listAdminMonthlyAttendance(
           lastName: true,
           studentId: true,
           employeeCode: true,
-          shopCode: true,
+          ...(filter.academicTermId ? enrollmentSelectForTerm(filter.academicTermId) : currentEnrollmentSelect),
         },
       },
     },
-  });
+  }).then((items) => items.map((item) => ({ ...item, user: withEnrollmentView(item.user) })));
 }

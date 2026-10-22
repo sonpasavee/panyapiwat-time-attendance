@@ -398,15 +398,37 @@
 
 @media (max-width: 640px) {
   .leaves-tabs {
+    width: 100%;
     max-width: 100%;
     overflow-x: auto;
   }
   .leaves-tabs a {
-    padding: 0 16px;
+    flex: 1 1 0;
+    justify-content: center;
+    padding: 0 12px;
     white-space: nowrap;
   }
   .leaves-type-grid {
     grid-template-columns: 1fr;
+  }
+  .leaves-type-card {
+    min-width: 0;
+  }
+  .leaves-type-card > span:last-child {
+    min-width: 0;
+  }
+  .leaves-reason-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .leaves-reason-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .leaves-reason-chip {
+    flex: none;
+    white-space: nowrap;
   }
   .leaves-cal-grid {
     gap: 4px;
@@ -415,8 +437,15 @@
     min-height: 44px;
     font-size: 14px;
   }
+  .leaves-cal-legend {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
   .leaves-holiday-row {
     padding: 12px;
+  }
+  .leaves-history-row {
+    gap: 10px;
   }
   .leaves-success {
     padding: 16px;

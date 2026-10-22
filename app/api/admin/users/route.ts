@@ -17,13 +17,15 @@ export async function GET(request: Request) {
     const query = new URL(request.url).searchParams;
     const filters = adminUsersQuerySchema.parse(Object.fromEntries(query));
     const { page, pageSize, skip } = pagination(query);
-    const where = buildUserFilter({
+    const where = await buildUserFilter({
       role: filters.role,
       shopCode: filters.shopCode,
       gradeLevel: filters.gradeLevel,
+      section: filters.section,
+      academicTermId: filters.academicTermId,
       query: filters.q,
     });
-    const { items, total } = await listUsers(where, skip, pageSize);
+    const { items, total } = await listUsers(where, skip, pageSize, filters.academicTermId);
     return json({
       items,
       pagination: {

@@ -18,14 +18,18 @@ export async function GET(request: Request) {
     const filters = adminLeavesQuerySchema.parse(Object.fromEntries(query));
     const monthYearFilter =
       query.has("month") || query.has("year") ? monthYear(query) : undefined;
-    const where = buildAdminLeaveFilter({
+    const where = await buildAdminLeaveFilter({
       type: filters.type,
       month: monthYearFilter?.month,
       year: monthYearFilter?.year,
       userId: filters.userId,
       shopCode: filters.shopCode,
+      gradeLevel: filters.gradeLevel,
+      section: filters.section,
+      academicTermId: filters.academicTermId,
+      q: filters.q,
     });
-    const { items, total } = await listAdminLeaves(where, skip, pageSize);
+    const { items, total } = await listAdminLeaves(where, skip, pageSize, filters.academicTermId);
     return json({
       items,
       pagination: {

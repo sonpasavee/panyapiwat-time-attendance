@@ -15,6 +15,7 @@ export async function GET(request: Request) {
       await getAdminMonthlyReport(month, year, {
         shopCode: query.get("shopCode") ?? undefined,
         userId,
+        academicTermId: query.get("academicTermId") ?? undefined,
       }),
     );
   } catch (error) {

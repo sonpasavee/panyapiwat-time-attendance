@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import ExportCsvButton from "../../components/export-csv-button";
+import Pager from "../../components/pager";
 
 export type LeaveRow = {
   id: string;
@@ -59,11 +60,6 @@ const yearFmt = new Intl.DateTimeFormat("th-TH", {
   timeZone: "Asia/Bangkok",
   year: "numeric",
 });
-const timeFmt = new Intl.DateTimeFormat("th-TH", {
-  timeZone: "Asia/Bangkok",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 const monthLongFmt = new Intl.DateTimeFormat("th-TH", {
   timeZone: "Asia/Bangkok",
   month: "long",
@@ -82,11 +78,6 @@ function fullDate(iso: string) {
 
 function rangeLabel(start: string, end: string) {
   return start === end ? shortDate(start) : `${shortDate(start)} – ${shortDate(end)}`;
-}
-
-function createdLabel(iso: string) {
-  const d = new Date(iso);
-  return `${dayNum.format(d)} ${monthShort.format(d)} ${timeFmt.format(d)}`;
 }
 
 function monthLabelText(year: number, month: number) {
@@ -138,6 +129,17 @@ export default function LeavesManager({
   filters,
   linkBase,
   todayISO,
+  todayItems,
+  typeCounts,
+  pagination,
+  dateWindow,
+  exportHref,
+  termOptions,
+  academicTermId,
+  shopOptions,
+  classGroupOptions,
+  gradeLevel,
+  section,
 }: {
   items: LeaveRow[];
   view: "student" | "date" | "timeline";
@@ -146,33 +148,31 @@ export default function LeavesManager({
   filters: { q: string; shopCode: string; type: "" | LeaveRow["type"] };
   linkBase: Record<string, string>;
   todayISO: string;
+  todayItems: LeaveRow[];
+  typeCounts: { total: number; SICK: number; PERSONAL: number; HOLIDAY: number };
+  pagination: { page: number; pageCount: number; summary: string };
+  dateWindow?: { start: string; end: string };
+  exportHref: string;
+  termOptions: Array<{ id: string; academicYear: number; semester: number }>;
+  academicTermId: string;
+  shopOptions: string[];
+  classGroupOptions: Array<{ yearLevel: number; section: string }>;
+  gradeLevel: string;
+  section: string;
 }) {
   const [q, setQ] = useState(filters.q);
-  const [shopCode, setShopCode] = useState(filters.shopCode);
-  const [page, setPage] = useState(1);
+  const [shopCode] = useState(filters.shopCode);
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
   const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
 
-  const visible = useMemo(
-    () =>
-      filters.type === ""
-        ? items
-        : items.filter((r) => r.type === filters.type),
-    [items, filters.type],
-  );
-
-  const counts = useMemo(() => {
-    const c = { total: items.length, SICK: 0, PERSONAL: 0, HOLIDAY: 0 };
-    for (const r of items) c[r.type] += 1;
-    return c;
-  }, [items]);
-
-  const todayLeaves = useMemo(
-    () => visible.filter((r) => r.start <= todayISO && r.end >= todayISO),
-    [visible, todayISO],
-  );
+  // items ถูกกรองประเภทและแบ่งหน้าจาก server แล้ว
+  const visible = items;
+  const counts = typeCounts;
+  const todayLeaves = todayItems;
   const todayPeople = new Set(todayLeaves.map((r) => r.user.id)).size;
+  const rangeStart = view === "date" && dateWindow ? dateWindow.start : monthStart;
+  const rangeEnd = view === "date" && dateWindow ? dateWindow.end : monthEnd;
 
   const studentGroups = useMemo(() => {
     const groups = new Map<string, { user: LeaveRow["user"]; leaves: LeaveRow[] }>();
@@ -197,16 +197,12 @@ export default function LeavesManager({
       })
       .sort((a, b) => `${a.user.firstName} ${a.user.lastName}`.localeCompare(`${b.user.firstName} ${b.user.lastName}`, "th"));
   }, [visible, monthStart, monthEnd]);
-  const pageSize = 10;
-  const pageCount = Math.max(1, Math.ceil(studentGroups.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pageGroups = studentGroups.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const dateGroups = useMemo(() => {
     const groups = new Map<string, LeaveRow[]>();
     for (const leave of visible) {
-      const start = leave.start < monthStart ? monthStart : leave.start;
-      const end = leave.end > monthEnd ? monthEnd : leave.end;
+      const start = leave.start < rangeStart ? rangeStart : leave.start;
+      const end = leave.end > rangeEnd ? rangeEnd : leave.end;
       for (let date = start; date <= end; date = addDays(date, 1)) {
         const rows = groups.get(date) ?? [];
         rows.push(leave);
@@ -216,24 +212,11 @@ export default function LeavesManager({
     return [...groups.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, leaves]) => ({ date, leaves }));
-  }, [visible, monthStart, monthEnd]);
+  }, [visible, rangeStart, rangeEnd]);
 
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
   const navBase = linkBase;
-
-  const csvRows = useMemo(
-    () =>
-      visible.map((r) => [
-        `${r.user.firstName} ${r.user.lastName}`,
-        r.user.shopCode ?? "–",
-        TYPE_LABEL[r.type],
-        rangeLabel(r.start, r.end),
-        r.reason ?? "–",
-        createdLabel(r.createdAt),
-      ]),
-    [visible],
-  );
 
   // ---------- ไทม์ไลน์ ----------
   const timeline = useMemo(() => {
@@ -268,6 +251,17 @@ export default function LeavesManager({
     { value: "PERSONAL", label: "ลากิจ", count: counts.PERSONAL },
     { value: "HOLIDAY", label: "วันหยุด", count: counts.HOLIDAY },
   ];
+
+  const pager = (
+    <Pager
+      pathname="/admin/leaves"
+      params={navBase}
+      page={pagination.page}
+      totalPages={pagination.pageCount}
+      numbered
+      summary={pagination.summary}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -312,11 +306,7 @@ export default function LeavesManager({
               ›
             </Link>
           </nav>
-          <ExportCsvButton
-            filename={`การลา_${year}-${String(month).padStart(2, "0")}.csv`}
-            headers={["ชื่อ", "ร้าน", "ประเภท", "วันที่", "เหตุผล", "บันทึกเมื่อ"]}
-            rows={csvRows}
-          />
+          <ExportCsvButton href={exportHref} />
         </div>
       </div>
 
@@ -410,17 +400,31 @@ export default function LeavesManager({
           />
         </div>
         <div className="admin-leaves-shop">
-          <label htmlFor="admin-leaves-shop" className="sr-only">รหัสร้าน</label>
-          <input
-            id="admin-leaves-shop"
-            name="shopCode"
-            type="text"
-            className="input"
-            placeholder="รหัสร้าน"
-            value={shopCode}
-            maxLength={40}
-            onChange={(e) => setShopCode(e.target.value)}
-          />
+          <label htmlFor="leaves-term" className="sr-only">ภาคเรียน</label>
+          <select id="leaves-term" name="academicTermId" className="input" defaultValue={academicTermId}>
+            {termOptions.map((term) => <option key={term.id} value={term.id}>ภาค {term.semester}/{term.academicYear}</option>)}
+          </select>
+        </div>
+        <div className="admin-leaves-shop">
+          <label htmlFor="leaves-grade" className="sr-only">ชั้นปี</label>
+          <select id="leaves-grade" name="gradeLevel" className="input" defaultValue={gradeLevel}>
+            <option value="">ทุกชั้นปี</option>
+            {[...new Set(classGroupOptions.map((group) => group.yearLevel))].sort((a, b) => a - b).map((level) => <option key={level} value={level}>ปี {level}</option>)}
+          </select>
+        </div>
+        <div className="admin-leaves-shop">
+          <label htmlFor="leaves-section" className="sr-only">ห้อง</label>
+          <select id="leaves-section" name="section" className="input" defaultValue={section}>
+            <option value="">ทุกห้อง</option>
+            {[...new Set(classGroupOptions.filter((group) => !gradeLevel || group.yearLevel === Number(gradeLevel)).map((group) => group.section))].sort().map((room) => <option key={room} value={room}>ห้อง {room}</option>)}
+          </select>
+        </div>
+        <div className="admin-leaves-shop">
+          <label htmlFor="admin-leaves-shop" className="sr-only">สาขาฝึกงาน</label>
+          <select id="admin-leaves-shop" name="shopCode" className="input" defaultValue={shopCode}>
+            <option value="">ทุกสาขา</option>
+            {shopOptions.map((shop) => <option key={shop} value={shop}>{shop}</option>)}
+          </select>
         </div>
         <div className="admin-leaves-pills" role="group" aria-label="กรองตามประเภท">
           {pills.map((p) => (
@@ -443,7 +447,7 @@ export default function LeavesManager({
               <div className="admin-leaves-table-scroll"><table className="tbl admin-leaves-student-table">
                 <caption className="sr-only">รายการลาแยกตามนักศึกษาประจำเดือนนี้</caption>
                 <thead><tr><th scope="col">นักศึกษา</th><th scope="col">วันนี้</th><th scope="col">วันหยุด / การลา</th><th scope="col">รวม</th></tr></thead>
-                <tbody>{pageGroups.map((group) => {
+                <tbody>{studentGroups.map((group) => {
                   const leavesToday = group.leaves.filter((leave) => leave.start <= todayISO && leave.end >= todayISO);
                   return <tr key={group.user.id}>
                     <td><span className="admin-leaves-user"><span className="admin-leaves-avatar" data-tone={toneOf(group.user.id)} aria-hidden="true">{(group.user.firstName || "?").charAt(0)}</span><span><span className="admin-leaves-username">{group.user.firstName} {group.user.lastName}</span>{group.user.shopCode && <span className="admin-leaves-shopchip">{group.user.shopCode}</span>}{group.user.studentId && <span className="admin-leaves-student-id">{group.user.studentId}</span>}</span></span></td>
@@ -453,7 +457,7 @@ export default function LeavesManager({
                   </tr>;
                 })}</tbody>
               </table></div>
-              <div className="admin-leaves-pagination"><span>{studentGroups.length} คน · หน้า {currentPage} / {pageCount}</span><div><button type="button" className="btn btn-outline" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</button><span className="admin-leaves-page-number">{currentPage}</span><button type="button" className="btn btn-outline" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>ถัดไป</button></div></div>
+              {pager}
             </>
           )}
         </section>
@@ -469,6 +473,7 @@ export default function LeavesManager({
               <div className="admin-leaves-date-content"><p className="admin-leaves-date-heading">{weekday} {fullDate(date)} · {uniquePeople} คน</p><div className="admin-leaves-date-people">{leaves.map((leave) => <div className="admin-leaves-date-person" key={date + leave.id}><span className="admin-leaves-avatar" data-tone={toneOf(leave.user.id)} aria-hidden="true">{(leave.user.firstName || "?").charAt(0)}</span><strong>{leave.user.firstName} {leave.user.lastName}</strong>{leave.user.shopCode && <span className="admin-leaves-shopchip">{leave.user.shopCode}</span>}<span className="admin-leaves-type" data-type={leave.type}>{TYPE_LABEL[leave.type]}</span></div>)}</div></div>
             </section>;
           })}
+          <div className="card overflow-hidden">{pager}</div>
         </section>
       ) : (
         <section aria-label="ไทม์ไลน์รายคน" className="card" style={{ overflow: "hidden" }}>
@@ -536,6 +541,7 @@ export default function LeavesManager({
               </table>
             </div>
           )}
+          {pager}
           <div className="admin-leaves-legend">
             <span><span className="admin-leaves-dot" data-type="SICK" /> ลาป่วย</span>
             <span><span className="admin-leaves-dot" data-type="PERSONAL" /> ลากิจ</span>

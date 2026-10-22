@@ -8,10 +8,19 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   background: #f4f7fb;
   color: #0f1f3a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 /* focus ring ทุก interactive element (ตาม AGENTS.md) */
@@ -80,6 +89,7 @@ body {
 
 .card {
   box-sizing: border-box;
+  max-width: 100%;
   background: #ffffff;
   border: 1px solid #e3e9f2;
   border-radius: 18px;
@@ -347,8 +357,66 @@ img {
   height: auto;
 }
 
+/* องค์ประกอบที่มักทำให้เกิด horizontal overflow บนจอแคบ */
+.input,
+select,
+textarea,
+button,
+.btn {
+  max-width: 100%;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+.tbl td,
+.tbl th {
+  overflow-wrap: break-word;
+}
+
+.overflow-x-auto,
+[class*="table-scroll"],
+[class*="timeline-scroll"],
+[class*="chart-scroll"] {
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 768px) {
+  .loading-page {
+    min-height: min(50vh, 360px);
+    padding: 32px 16px;
+  }
+}
+
 @media (max-width: 640px) {
   .btn {
     padding: 0 14px;
+  }
+
+  .tbl {
+    font-size: 13px;
+  }
+
+  .tbl th,
+  .tbl td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .btn {
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .btn-submit {
+    font-size: 15px;
+  }
+
+  .badge {
+    padding: 3px 8px;
+    font-size: 11px;
   }
 }

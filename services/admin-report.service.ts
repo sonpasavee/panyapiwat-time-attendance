@@ -1,7 +1,8 @@
-import { monthRange } from "@/lib/time";
+import { bangkokWorkDate, monthRange } from "@/lib/time";
 import {
   findReportStudent,
-  listActiveReportShopCodes,
+  listReportAcademicTerms,
+  listReportShopCodesForTerm,
   listDailyReportAttendance,
   listDailyReportLeaves,
   listMonthlyReportAttendance,
@@ -18,13 +19,17 @@ import {
 } from "@/services/money-tracker.logic";
 
 export type ReportUserFilter = {
+  academicTermId: string;
   shopCode?: string;
+  gradeLevel?: number;
+  section?: string;
   q?: string;
 };
 
 export type DailyRowStatus =
   | "COMPLETE"
   | "WORKING"
+  | "MISSED_CHECKOUT"
   | "NO_CHECKIN"
   | "SICK"
   | "PERSONAL"
@@ -66,11 +71,18 @@ function availablePhotoUrl(url: string | null, uploadedAt: Date | null) {
 }
 
 // รายชื่อนักศึกษาที่ใช้งานอยู่ (roster ตั้งต้นของหน้ารายงาน)
-function userWhere(filter: ReportUserFilter) {
+async function userWhere(filter: ReportUserFilter) {
   return {
     role: "STUDENT" as const,
     isActive: true,
-    ...(filter.shopCode ? { shopCode: filter.shopCode } : {}),
+    enrollments: { some: {
+      academicTermId: filter.academicTermId,
+      ...(filter.shopCode ? { branch: { name: filter.shopCode } } : {}),
+      ...(filter.gradeLevel || filter.section ? { classGroup: {
+        ...(filter.gradeLevel ? { yearLevel: filter.gradeLevel } : {}),
+        ...(filter.section ? { section: filter.section } : {}),
+      } } : {}),
+    } },
     ...(filter.q
       ? {
           OR: [
@@ -87,12 +99,16 @@ function userWhere(filter: ReportUserFilter) {
 }
 
 async function getRoster(filter: ReportUserFilter) {
-  return listReportRoster(userWhere(filter));
+  return listReportRoster(await userWhere(filter), filter.academicTermId);
 }
 
 // รหัสร้านทั้งหมดของนักศึกษา active (ไว้ทำ dropdown ตัวกรอง)
-export function listActiveShopCodes() {
-  return listActiveReportShopCodes();
+export function listReportTerms() {
+  return listReportAcademicTerms();
+}
+
+export function listActiveShopCodes(academicTermId: string) {
+  return listReportShopCodesForTerm(academicTermId);
 }
 
 function minutesBetween(checkInAt: Date, checkOutAt: Date) {
@@ -122,6 +138,8 @@ export async function getDailyReport(
 
   const attendanceByUser = new Map(attendances.map((a) => [a.userId, a]));
   const leaveByUser = new Map(leaves.map((l) => [l.userId, l.type]));
+  const todayISO = bangkokWorkDate().toISOString().slice(0, 10);
+  const isPastDate = dateISO < todayISO;
 
   const rows: DailyRow[] = roster.map((user) => {
     const att = attendanceByUser.get(user.id) ?? null;
@@ -129,7 +147,9 @@ export async function getDailyReport(
     const status: DailyRowStatus = att
       ? att.checkOutAt
         ? "COMPLETE"
-        : "WORKING"
+        : isPastDate
+          ? "MISSED_CHECKOUT"
+          : "WORKING"
       : (leaveType ?? "NO_CHECKIN");
     return {
       user,
@@ -205,15 +225,18 @@ export async function getMonthlyReportOverview(
     stats.set(a.userId, s);
   }
 
-  // นับวันลาที่คาบเกี่ยวเดือนนี้ (startDate–endDate ตัดให้อยู่แค่ในเดือน)
-  const leaveDays = new Map<string, number>();
+  // นับวันลาที่คาบเกี่ยวเดือนนี้แบบไม่ซ้ำวัน แม้มีใบลาซ้อนกัน
+  const leaveDates = new Map<string, Set<string>>();
   for (const l of leaves) {
     const start = l.startDate < range.gte ? range.gte : l.startDate;
     const end =
       l.endDate >= range.lt ? new Date(range.lt.getTime() - 1) : l.endDate;
-    const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
-    if (days > 0)
-      leaveDays.set(l.userId, (leaveDays.get(l.userId) ?? 0) + days);
+    for (let time = start.getTime(); time <= end.getTime(); time += 86400000) {
+      const day = new Date(time).toISOString().slice(0, 10);
+      const dates = leaveDates.get(l.userId) ?? new Set<string>();
+      dates.add(day);
+      leaveDates.set(l.userId, dates);
+    }
   }
 
   const rows: MonthlyRow[] = roster.map((user) => {
@@ -222,7 +245,7 @@ export async function getMonthlyReportOverview(
       completeDays: 0,
       totalMinutes: 0,
     };
-    return { user, ...s, leaveDays: leaveDays.get(user.id) ?? 0 };
+    return { user, ...s, leaveDays: leaveDates.get(user.id)?.size ?? 0 };
   });
 
   const totalMinutes = rows.reduce((sum, r) => sum + r.totalMinutes, 0);
@@ -258,8 +281,9 @@ export async function getUserMonthlyDetail(
   userId: string,
   month: number,
   year: number,
+  academicTermId?: string,
 ) {
-  const user = await findReportStudent(userId);
+  const user = await findReportStudent(userId, academicTermId);
   if (!user) return null;
 
   const range = monthRange(year, month);

@@ -11,13 +11,16 @@ import {
   getAdminAttendanceStats,
   listAdminAttendance,
 } from "@/services/attendance.service";
-import { listShopCodes } from "@/services/user.service";
+import { getAcademicTerms, listShopCodes, listClassGroupFilters } from "@/services/user.service";
 
 import Pager from "../../components/pager";
 import AttendanceManager, { type AttendanceRow } from "./attendance-manager";
 import "./admin-attendance.css";
 
 export const instant = false;
+
+// 250 คน × 31 วัน = 7,750 แถวต่อเดือน เผื่อพื้นที่สำหรับ export ทั้งหมดตาม filter
+const CSV_EXPORT_LIMIT = 20_000;
 
 type SearchParams = {
   q?: string | string[];
@@ -29,6 +32,9 @@ type SearchParams = {
   year?: string | string[];
   page?: string | string[];
   pageSize?: string | string[];
+  academicTermId?: string | string[];
+  gradeLevel?: string | string[];
+  section?: string | string[];
 };
 
 function first(value: string | string[] | undefined) {
@@ -75,12 +81,16 @@ export default async function AdminAttendancePage({
 }) {
   await requireAdminPage();
   const params = await searchParams;
+  const terms = await getAcademicTerms();
+  const requestedTerm = str(params.academicTermId);
+  const academicTermId = terms.some((term) => term.id === requestedTerm) ? requestedTerm : terms[0]?.id;
 
   const raw: Record<string, string> = {};
-  for (const key of ["q", "shopCode", "date", "sort"] as const) {
+  for (const key of ["q", "shopCode", "date", "sort", "gradeLevel", "section"] as const) {
     const v = str(params[key]);
     if (v) raw[key] = v;
   }
+  if (academicTermId) raw.academicTermId = academicTermId;
   const filters = adminAttendanceQuerySchema.parse(raw);
   const { month, year } = monthYear(
     new URLSearchParams({
@@ -107,26 +117,39 @@ export default async function AdminAttendancePage({
     date: filters.date,
     monthRange: filters.date ? undefined : monthRange(year, month),
     shopCode: filters.shopCode,
+    gradeLevel: filters.gradeLevel,
+    section: filters.section,
+    academicTermId,
     query: filters.q,
   };
-  const baseWhere = buildAdminAttendanceFilter(filterInput);
-  const where = buildAdminAttendanceFilter({
+  const baseWhere = await buildAdminAttendanceFilter(filterInput);
+  const where = await buildAdminAttendanceFilter({
     ...filterInput,
     status: status || undefined,
     today: todayDate,
   });
 
   // ดึงทั้งเดือน (ไม่แตะ service เดิม) แล้วกรองสถานะ + แบ่งหน้าในเพจ
-  const [pageResult, stats, shopCodes] = await Promise.all([
-    listAdminAttendance(
-      where,
-      (page - 1) * pageSize,
-      pageSize,
-      filters.sort ?? "desc",
-    ),
-    getAdminAttendanceStats(baseWhere, todayDate),
-    listShopCodes(),
-  ]);
+  const [pageResult, stats, shopCodes, classGroupOptions, exportResult] =
+    await Promise.all([
+      listAdminAttendance(
+        where,
+        (page - 1) * pageSize,
+        pageSize,
+        filters.sort ?? "desc",
+        academicTermId,
+      ),
+      getAdminAttendanceStats(baseWhere, todayDate),
+      listShopCodes(academicTermId),
+      listClassGroupFilters(academicTermId),
+      listAdminAttendance(
+        where,
+        0,
+        CSV_EXPORT_LIMIT,
+        filters.sort ?? "desc",
+        academicTermId,
+      ),
+    ]);
 
   const totalPages = Math.max(1, Math.ceil(pageResult.total / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -139,15 +162,19 @@ export default async function AdminAttendancePage({
             (safePage - 1) * pageSize,
             pageSize,
             filters.sort ?? "desc",
+            academicTermId,
           )
         ).items;
-  const pageItems = items.map((item) => ({
-    item,
-    st: (item.checkOutAt
+  const statusOf = (item: (typeof items)[number]) =>
+    (item.checkOutAt
       ? "complete"
       : item.workDate.toISOString().slice(0, 10) >= today
         ? "working"
-        : "missed") as Exclude<StatusFilter, "">,
+        : "missed") as Exclude<StatusFilter, "">;
+
+  const pageItems = items.map((item) => ({
+    item,
+    st: statusOf(item),
   }));
 
   const rows: AttendanceRow[] = pageItems.map(({ item }) => ({
@@ -167,7 +194,7 @@ export default async function AdminAttendancePage({
     },
   }));
 
-  const csvRows = pageItems.map(({ item, st }) => {
+  const csvRows = exportResult.items.map((item) => {
     const d = item.workDate;
     const date = `${dayNum.format(d)} ${monthShort.format(d)}`;
     const time = (v: Date | null) => (v ? timeFmt.format(v) : "–");
@@ -183,7 +210,7 @@ export default async function AdminAttendancePage({
       time(item.checkInAt),
       time(item.checkOutAt),
       h,
-      STATUS_LABEL[st],
+      STATUS_LABEL[statusOf(item)],
     ];
   });
 
@@ -192,8 +219,11 @@ export default async function AdminAttendancePage({
     year: String(year),
     ...(filters.q ? { q: filters.q } : {}),
     ...(filters.shopCode ? { shopCode: filters.shopCode } : {}),
+    ...(filters.gradeLevel ? { gradeLevel: String(filters.gradeLevel) } : {}),
+    ...(filters.section ? { section: filters.section } : {}),
     ...(filters.date ? { date: filters.date } : {}),
     ...(filters.sort ? { sort: filters.sort } : {}),
+    ...(academicTermId ? { academicTermId } : {}),
   };
 
   const preserved: Record<string, string> = {
@@ -212,10 +242,15 @@ export default async function AdminAttendancePage({
       filters={{
         q: filters.q ?? "",
         shopCode: filters.shopCode ?? "",
+        gradeLevel: filters.gradeLevel ? String(filters.gradeLevel) : "",
+        section: filters.section ?? "",
         date: filters.date ?? "",
         sort: filters.sort ?? "desc",
       }}
       shopCodes={shopCodes}
+      classGroupOptions={classGroupOptions}
+      termOptions={terms}
+      academicTermId={academicTermId ?? ""}
       stats={stats}
       status={status}
       csvRows={csvRows}

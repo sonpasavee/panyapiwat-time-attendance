@@ -103,6 +103,7 @@ export default async function StudentLeavesPage({
         <LeaveManager
           leaves={records}
           stats={{ sick: statOf("SICK"), personal: statOf("PERSONAL") }}
+          todayISO={today}
         />
       )}
     </div>

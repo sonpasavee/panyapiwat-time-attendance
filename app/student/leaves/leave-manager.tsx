@@ -78,9 +78,11 @@ function readError(response: Response, fallback: string) {
 export default function LeaveManager({
   leaves,
   stats,
+  todayISO,
 }: {
   leaves: LeaveItem[];
   stats: LeaveStats;
+  todayISO: string;
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(leaves.length === 0);
@@ -103,6 +105,10 @@ export default function LeaveManager({
     }
     if (end < start) {
       setError("ถึงวันที่ต้องไม่ก่อนตั้งแต่วันที่");
+      return;
+    }
+    if (start < todayISO) {
+      setError("ไม่สามารถลาหรือหยุดย้อนหลังได้");
       return;
     }
     setSaving(true);
@@ -253,6 +259,7 @@ export default function LeaveManager({
                   type="date"
                   className="input min-h-[44px]"
                   value={start}
+                  min={todayISO}
                   onChange={(e) => setStart(e.target.value)}
                 />
               </div>
@@ -271,7 +278,7 @@ export default function LeaveManager({
                   type="date"
                   className="input min-h-[44px]"
                   value={end}
-                  min={start || undefined}
+                  min={start || todayISO}
                   onChange={(e) => setEnd(e.target.value)}
                 />
               </div>

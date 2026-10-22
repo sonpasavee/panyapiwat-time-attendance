@@ -5,6 +5,7 @@ import { requireAdminPage } from "@/lib/page-auth";
 import { formatSpent } from "@/lib/format";
 import { idSchema, monthYear } from "@/validators/api";
 import { getUserById } from "@/services/user.service";
+import { getAcademicTerms } from "@/services/user.service";
 import {
   amountToCents,
   centsToAmount,
@@ -60,11 +61,14 @@ export default async function AdminFinanceDetailPage({
   searchParams,
 }: {
   params: Promise<{ userId: string }>;
-  searchParams: Promise<{ month?: string | string[]; year?: string | string[] }>;
+  searchParams: Promise<{ month?: string | string[]; year?: string | string[]; academicTermId?: string | string[] }>;
 }) {
   await requireAdminPage();
   const { userId } = await params;
   const query = await searchParams;
+  const terms = await getAcademicTerms();
+  const requestedTerm = str(query.academicTermId);
+  const academicTermId = terms.some((term) => term.id === requestedTerm) ? requestedTerm : terms[0]?.id;
 
   let validId = "";
   try {
@@ -88,7 +92,7 @@ export default async function AdminFinanceDetailPage({
 
   let user;
   try {
-    user = await getUserById(validId);
+    user = await getUserById(validId, academicTermId);
   } catch {
     notFound();
   }
@@ -136,17 +140,29 @@ export default async function AdminFinanceDetailPage({
   const prev = shiftMonth(month, year, -1);
   const next = shiftMonth(month, year, 1);
   const monthHref = (m: number, y: number) =>
-    `/admin/finance/${validId}?month=${m}&year=${y}`;
+    `/admin/finance/${validId}?month=${m}&year=${y}${academicTermId ? `&academicTermId=${encodeURIComponent(academicTermId)}` : ""}`;
   const spentShown = formatSpent(spentTotal);
 
   return (
     <div className="flex flex-col gap-6">
       <Link
-        href={`/admin/finance?month=${month}&year=${year}`}
+        href={`/admin/finance?month=${month}&year=${year}${academicTermId ? `&academicTermId=${encodeURIComponent(academicTermId)}` : ""}`}
         className="inline-flex min-h-[44px] w-fit items-center gap-1 text-[15px] font-medium text-[#1750b8] no-underline hover:underline"
       >
         ‹ กลับไปสรุปการเงิน
       </Link>
+
+      {terms.length > 0 && (
+        <form method="get" className="flex items-center gap-3">
+          <input type="hidden" name="month" value={month} />
+          <input type="hidden" name="year" value={year} />
+          <label htmlFor="finance-detail-term">ภาคเรียน</label>
+          <select id="finance-detail-term" name="academicTermId" className="input w-auto" defaultValue={academicTermId}>
+            {terms.map((term) => <option key={term.id} value={term.id}>ภาค {term.semester}/{term.academicYear}</option>)}
+          </select>
+          <button className="btn btn-outline" type="submit">ดูภาคเรียน</button>
+        </form>
+      )}
 
       <div className="fin-head">
         <div className="flex min-w-0 flex-1 items-center gap-4 basis-52">

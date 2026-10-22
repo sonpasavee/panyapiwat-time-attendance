@@ -4,6 +4,8 @@ import { bangkokWorkDate, monthRange } from "../lib/time.ts";
 import { summarizeShifts } from "../services/monthly-report.logic.ts";
 import { summarizeMoneyEntries, summarizeDailyMoney } from "../services/money-tracker.logic.ts";
 import { checkOutRuleError } from "../services/attendance.logic.ts";
+import { leaveRangeError, leaveRangesOverlap } from "../services/leave.logic.ts";
+import { inferClassAndTerm } from "../lib/import-parse.ts";
 import {
   leaveSchema,
   moneyAmountSchema,
@@ -149,31 +151,46 @@ test("leave validation rejects reversed dates and accepts all supported kinds", 
 });
 
 test("student import requires employee codes and rejects duplicate identifiers across the file", () => {
-  const row = (line, studentId, employeeCode) => ({
+  const row = (line, studentId, employeeCode, overrides = {}) => ({
     line,
     studentId,
     firstName: "สมชาย",
     lastName: "ใจดี",
     employeeCode,
+    branchName: "สาขาทดสอบ",
+    programLevel: "ปวช",
+    yearLevel: 1,
+    section: "A",
+    academicYear: 2569,
+    semester: 1,
+    ...overrides,
   });
 
-  assert.equal(
-    studentImportSchema.safeParse({
-      rows: [row(2, "68001", "EMP01"), row(3, "68002", "EMP01")],
-    }).success,
-    false,
+  const duplicateEmployee = studentImportSchema.safeParse({
+    rows: [row(2, "68001", "EMP01"), row(3, "68002", "EMP01")],
+  });
+  assert.equal(duplicateEmployee.success, false);
+  assert.ok(
+    duplicateEmployee.error.issues.some((issue) =>
+      issue.path.join(".").endsWith("employeeCode"),
+    ),
   );
+
   assert.equal(
     studentImportSchema.safeParse({
       rows: [row(2, "68001", "EMP01"), row(3, "EMP02", "68001")],
     }).success,
     false,
   );
-  assert.equal(
-    studentImportSchema.safeParse({
-      rows: [{ ...row(2, "68001", ""), employeeCode: "" }],
-    }).success,
-    false,
+
+  const missingEmployee = studentImportSchema.safeParse({
+    rows: [row(2, "68001", "", { employeeCode: "" })],
+  });
+  assert.equal(missingEmployee.success, false);
+  assert.ok(
+    missingEmployee.error.issues.some((issue) =>
+      issue.path.join(".").endsWith("employeeCode"),
+    ),
   );
 });
 
@@ -184,16 +201,84 @@ test("student import accepts valid rows and enforces the batch cap", () => {
     firstName: "สมชาย",
     lastName: "ใจดี",
     employeeCode: `EMP${line}`,
-    gradeLevel: "3",
+    branchName: "สาขาทดสอบ",
+    programLevel: "ปวช",
+    yearLevel: 1,
+    section: "A",
+    academicYear: 2569,
+    semester: 1,
   });
 
   const parsed = studentImportSchema.parse({ rows: [row(2)] });
-  assert.equal(parsed.rows[0].gradeLevel, 3);
+  assert.equal(parsed.rows[0].academicYear, 2569);
+  assert.equal(parsed.rows[0].semester, 1);
+  assert.equal(parsed.rows[0].branchName, "สาขาทดสอบ");
   assert.equal(
     studentImportSchema.safeParse({
       rows: Array.from({ length: 501 }, (_, index) => row(index + 2)),
     }).success,
     false,
+  );
+});
+
+test("import title parser supports common Thai academic-year formats", () => {
+  assert.deepEqual(inferClassAndTerm("รายชื่อนักเรียน ปวช.1B ปีการศึกษา 2569 ภาคเรียนที่ 1"), {
+    programLevel: "ปวช",
+    yearLevel: "1",
+    section: "B",
+    semester: "1",
+    academicYear: "2569",
+  });
+  assert.deepEqual(inferClassAndTerm("ปีการศึกษา 1/2569 ปวส.2A"), {
+    programLevel: "ปวส",
+    yearLevel: "2",
+    section: "A",
+    semester: "1",
+    academicYear: "2569",
+  });
+  assert.deepEqual(inferClassAndTerm("ภาคเรียนที่ 2 ปีการศึกษา 2569"), {
+    programLevel: "",
+    yearLevel: "",
+    section: "",
+    semester: "2",
+    academicYear: "2569",
+  });
+});
+
+test("leave rules reject past dates and detect overlapping ranges", () => {
+  const today = new Date("2026-10-22T00:00:00.000Z");
+  assert.equal(
+    leaveRangeError(
+      {
+        startDate: new Date("2026-10-21T00:00:00.000Z"),
+        endDate: new Date("2026-10-22T00:00:00.000Z"),
+      },
+      today,
+    ),
+    "PAST_LEAVE_NOT_ALLOWED",
+  );
+  assert.equal(
+    leaveRangeError(
+      {
+        startDate: new Date("2026-10-22T00:00:00.000Z"),
+        endDate: new Date("2026-10-22T00:00:00.000Z"),
+      },
+      today,
+    ),
+    null,
+  );
+  assert.equal(
+    leaveRangesOverlap(
+      {
+        startDate: new Date("2026-10-20T00:00:00.000Z"),
+        endDate: new Date("2026-10-22T00:00:00.000Z"),
+      },
+      {
+        startDate: new Date("2026-10-22T00:00:00.000Z"),
+        endDate: new Date("2026-10-23T00:00:00.000Z"),
+      },
+    ),
+    true,
   );
 });
 

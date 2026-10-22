@@ -38,13 +38,11 @@ model User {
   role         Role     @default(STUDENT)
   username     String   @unique // ใช้ login (เช่น เลขประจำตัวนักศึกษา)
   passwordHash String
+  titlePrefix  String?
   firstName    String
   lastName     String
   studentId    String?  @unique // เลขประจำตัวนักศึกษา (admin ไม่ต้องมี)
   employeeCode String?  @unique // รหัสพนักงาน
-  shopCode     String?
-  gradeLevel   Int?
-  yearLevel    Int?     // ระดับชั้น
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -52,8 +50,65 @@ model User {
   attendances Attendance[]
   leaves      Leave[]
   sessions    Session[]
+  enrollments StudentEnrollment[]
 
   @@index([role])
+}
+
+model AcademicTerm {
+  id           String   @id @default(uuid())
+  academicYear Int
+  semester     Int
+  createdAt    DateTime @default(now())
+
+  classGroups ClassGroup[]
+  enrollments StudentEnrollment[]
+
+  @@unique([academicYear, semester])
+}
+
+model ClassGroup {
+  id             String   @id @default(uuid())
+  academicTermId String
+  programLevel   String
+  yearLevel      Int
+  section        String
+  createdAt      DateTime @default(now())
+
+  academicTerm AcademicTerm        @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  enrollments  StudentEnrollment[]
+
+  @@unique([academicTermId, programLevel, yearLevel, section])
+  @@unique([id, academicTermId])
+  @@index([academicTermId])
+}
+
+model Branch {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  enrollments StudentEnrollment[]
+}
+
+model StudentEnrollment {
+  id             String   @id @default(uuid())
+  userId         String
+  academicTermId String
+  classGroupId   String
+  branchId       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  academicTerm AcademicTerm @relation(fields: [academicTermId], references: [id], onDelete: Restrict)
+  classGroup   ClassGroup   @relation(fields: [classGroupId, academicTermId], references: [id, academicTermId], onDelete: Restrict)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, academicTermId])
+  @@index([academicTermId, classGroupId])
+  @@index([branchId])
 }
 
 model Session {

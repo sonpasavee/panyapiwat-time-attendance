@@ -1,29 +1,60 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { currentEnrollmentSelect, withEnrollmentView } from "@/repositories/enrollment-view";
 
-const reportUserSelect = {
+function reportUserSelect(academicTermId?: string) {
+  const enrollmentSelection = academicTermId
+    ? {
+        enrollments: {
+          where: { academicTermId },
+          take: 1,
+          select: {
+            academicTerm: { select: { academicYear: true, semester: true } },
+            branch: { select: { name: true } },
+            classGroup: { select: { programLevel: true, yearLevel: true, section: true } },
+          },
+        },
+      }
+    : currentEnrollmentSelect;
+  return {
   id: true,
   firstName: true,
   lastName: true,
   studentId: true,
   employeeCode: true,
-  shopCode: true,
-} as const;
+  ...enrollmentSelection,
+  } as const;
+}
 
-export function listReportRoster(where: Prisma.UserWhereInput) {
+export function listReportRoster(where: Prisma.UserWhereInput, academicTermId: string) {
   return prisma.user.findMany({
     where,
-    select: reportUserSelect,
+    select: reportUserSelect(academicTermId),
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-  });
+  }).then((users) => users.map(withEnrollmentView));
 }
 
 export function listActiveReportShopCodes() {
   return prisma.user.findMany({
-    where: { role: "STUDENT", isActive: true, shopCode: { not: null } },
-    select: { shopCode: true },
-    distinct: ["shopCode"],
-    orderBy: { shopCode: "asc" },
+    where: { role: "STUDENT", isActive: true },
+    select: currentEnrollmentSelect,
+  }).then((users) => [...new Set(users.flatMap((user) => user.enrollments[0]?.branch.name ?? []))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ name })));
+}
+
+export function listReportAcademicTerms() {
+  return prisma.academicTerm.findMany({
+    select: { id: true, academicYear: true, semester: true },
+    orderBy: [{ academicYear: "desc" }, { semester: "desc" }],
+  });
+}
+
+export function listReportShopCodesForTerm(academicTermId: string) {
+  return prisma.branch.findMany({
+    where: { enrollments: { some: { academicTermId, user: { role: "STUDENT", isActive: true } } } },
+    select: { name: true },
+    orderBy: { name: "asc" },
   });
 }
 
@@ -84,11 +115,15 @@ export function listMonthlyReportLeaves(
   });
 }
 
-export function findReportStudent(userId: string) {
+export function findReportStudent(userId: string, academicTermId?: string) {
   return prisma.user.findFirst({
-    where: { id: userId, role: "STUDENT" },
-    select: reportUserSelect,
-  });
+    where: {
+      id: userId,
+      role: "STUDENT",
+      ...(academicTermId ? { enrollments: { some: { academicTermId } } } : {}),
+    },
+    select: reportUserSelect(academicTermId),
+  }).then((user) => user ? withEnrollmentView(user) : null);
 }
 
 export function listUserMonthlyDetailAttendance(

@@ -153,6 +153,9 @@ export default function AttendanceManager({
   linkBase,
   filters,
   shopCodes,
+  classGroupOptions,
+  termOptions,
+  academicTermId,
   stats,
   status,
   csvRows,
@@ -165,8 +168,11 @@ export default function AttendanceManager({
   year: number;
   monthLabel: string;
   linkBase: Record<string, string>;
-  filters: { q: string; shopCode: string; date: string; sort: "asc" | "desc" };
+  filters: { q: string; shopCode: string; gradeLevel: string; section: string; date: string; sort: "asc" | "desc" };
   shopCodes: string[];
+  classGroupOptions: Array<{ yearLevel: number; section: string }>;
+  termOptions: Array<{ id: string; academicYear: number; semester: number }>;
+  academicTermId: string;
   stats: { total: number; complete: number; working: number; missed: number };
   status: StatusFilter;
   csvRows: string[][];
@@ -225,7 +231,7 @@ export default function AttendanceManager({
   useEffect(() => {
     if (!detailId) return;
     let cancelled = false;
-    fetch(`/api/admin/attendance/${detailId}`)
+    fetch(`/api/admin/attendance/${detailId}?academicTermId=${encodeURIComponent(academicTermId)}`)
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body?.error?.message ?? "โหลดรายละเอียดไม่สำเร็จ");
@@ -237,7 +243,7 @@ export default function AttendanceManager({
     return () => {
       cancelled = true;
     };
-  }, [detailId]);
+  }, [detailId, academicTermId]);
 
   const detailMoney = detail ? summarizeDailyMoney(detail.money) : null;
   const detailStatus: RowStatus | null = detail
@@ -348,6 +354,9 @@ export default function AttendanceManager({
       <form className="card att-filter" role="search" method="get" action="/admin/attendance">
         <input type="hidden" name="month" value={month} />
         <input type="hidden" name="year" value={year} />
+        <select name="academicTermId" className="input att-filter-select att-term" defaultValue={academicTermId} aria-label="ภาคเรียน">
+          {termOptions.map((term) => <option key={term.id} value={term.id}>ภาค {term.semester}/{term.academicYear}</option>)}
+        </select>
         {status && <input type="hidden" name="status" value={status} />}
         <div className="att-search">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -379,6 +388,14 @@ export default function AttendanceManager({
             ))}
           </select>
         </div>
+        <select name="gradeLevel" className="input att-filter-select" defaultValue={filters.gradeLevel} aria-label="ชั้นปี">
+          <option value="">ทุกชั้นปี</option>
+          {[...new Set(classGroupOptions.map((group) => group.yearLevel))].sort((a, b) => a - b).map((yearLevel) => <option key={yearLevel} value={yearLevel}>ปี {yearLevel}</option>)}
+        </select>
+        <select name="section" className="input att-filter-select" defaultValue={filters.section} aria-label="ห้อง">
+          <option value="">ทุกห้อง</option>
+          {[...new Set(classGroupOptions.map((group) => group.section))].sort().map((section) => <option key={section} value={section}>ห้อง {section}</option>)}
+        </select>
         <div className="att-field">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" />

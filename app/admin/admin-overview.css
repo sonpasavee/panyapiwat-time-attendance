@@ -102,6 +102,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ov-rate-value {
+  font-size: clamp(32px, 6vw, 44px);
+}
+
+.ov-leave-name {
+  overflow-wrap: anywhere;
+}
+
 .ov-dot {
   width: 10px;
   height: 10px;
@@ -233,6 +241,14 @@
   font-size: 13px;
 }
 
+.ov-shopbar > .muted {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 .ov-shopbar-track {
   height: 8px;
   border-radius: 999px;
@@ -320,6 +336,33 @@
   border-radius: 999px;
 }
 
+@media (max-width: 1024px) {
+  .ov-head-actions {
+    width: 100%;
+  }
+
+  .ov-shopselect {
+    flex: 1 1 150px;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .ov-head-actions > .ov-shopselect,
+  .ov-head-actions > .ov-datelink {
+    flex: 1 1 calc(50% - 5px);
+  }
+
+  .ov-datelink {
+    justify-content: center;
+  }
+
+  .ov-head-actions > .btn {
+    width: 100%;
+  }
+}
+
 @media (max-width: 640px) {
   .ov-head h1 {
     font-size: 24px;
@@ -336,6 +379,17 @@
   }
   .ov-todo {
     flex-wrap: wrap;
+  }
+  .ov-todo a {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+  .ov-legend {
+    gap: 12px;
+  }
+  .ov-legend-item {
+    flex: 1 1 100%;
   }
   .ov-shopbar {
     grid-template-columns: 52px minmax(0, 1fr) 40px;

@@ -7,12 +7,16 @@ import {
   getDailyReport,
   getMonthlyReportOverview,
   listActiveShopCodes,
+  listReportTerms,
 } from "@/services/admin-report.service";
+import { listClassGroupFilters } from "@/services/user.service";
+import "./reports.css";
 
 import ExportExcelModal, {
   type DailyExportRow,
   type MonthlyExportRow,
 } from "../../components/export-excel-modal";
+import Pager from "../../components/pager";
 import {
   addDaysISO,
   AlertIcon,
@@ -43,10 +47,36 @@ type SearchParams = {
   year?: string | string[];
   q?: string | string[];
   shopCode?: string | string[];
+  termId?: string | string[];
+  gradeLevel?: string | string[];
+  section?: string | string[];
+  page?: string | string[];
+  pageSize?: string | string[];
 };
+
+const REPORT_PAGE_SIZES = [10, 20, 50] as const;
+const DEFAULT_REPORT_PAGE_SIZE = 20;
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function positiveInt(value: string | string[] | undefined, fallback: number) {
+  const raw = Number(first(value));
+  return Number.isInteger(raw) && raw > 0 ? raw : fallback;
+}
+
+function paginateRows<T>(rows: T[], requestedPage: number, pageSize: number) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const start = (page - 1) * pageSize;
+  return {
+    page,
+    totalPages,
+    start,
+    end: Math.min(start + pageSize, rows.length),
+    rows: rows.slice(start, start + pageSize),
+  };
 }
 
 function str(value: string | string[] | undefined) {
@@ -74,6 +104,16 @@ export default async function AdminReportsPage({
   const view = first(params.view) === "monthly" ? "monthly" : "daily";
   const q = str(params.q) ?? "";
   const shopCode = str(params.shopCode) ?? "";
+  const gradeRaw = str(params.gradeLevel);
+  const gradeLevel = gradeRaw && /^\d+$/.test(gradeRaw) ? Number(gradeRaw) : undefined;
+  const section = str(params.section) ?? "";
+  const requestedPage = positiveInt(params.page, 1);
+  const requestedPageSize = positiveInt(params.pageSize, DEFAULT_REPORT_PAGE_SIZE);
+  const pageSize = REPORT_PAGE_SIZES.includes(
+    requestedPageSize as (typeof REPORT_PAGE_SIZES)[number],
+  )
+    ? requestedPageSize
+    : DEFAULT_REPORT_PAGE_SIZE;
   const { month, year } = monthYear(
     new URLSearchParams({
       ...(str(params.month) ? { month: str(params.month)! } : {}),
@@ -83,16 +123,37 @@ export default async function AdminReportsPage({
 
   const dateParam = str(params.date);
   const date = isValidDateISO(dateParam) ? dateParam : todayISO();
-  const filter = { ...(q ? { q } : {}), ...(shopCode ? { shopCode } : {}) };
+  const terms = await listReportTerms();
+  const termId = terms.some((term) => term.id === str(params.termId))
+    ? str(params.termId)!
+    : terms[0]?.id ?? "";
+  const filter = { academicTermId: termId, ...(q ? { q } : {}), ...(shopCode ? { shopCode } : {}), ...(gradeLevel ? { gradeLevel } : {}), ...(section ? { section } : {}) };
 
-  const [daily, monthly, shops] = await Promise.all([
+  const [daily, monthly, shops, classGroupOptions] = await Promise.all([
     getDailyReport(date, filter),
     getMonthlyReportOverview(month, year, filter),
-    listActiveShopCodes(),
+    listActiveShopCodes(termId),
+    listClassGroupFilters(termId),
   ]);
 
-  const shopOptions = shops.map((s) => s.shopCode).filter((c): c is string => !!c);
-  const baseFilterParams = { ...(q ? { q } : {}), ...(shopCode ? { shopCode } : {}) };
+  const shopOptions = shops.map((branch) => branch.name);
+  const baseFilterParams = {
+    ...(termId ? { termId } : {}),
+    ...(q ? { q } : {}),
+    ...(shopCode ? { shopCode } : {}),
+    ...(gradeLevel ? { gradeLevel: String(gradeLevel) } : {}),
+    ...(section ? { section } : {}),
+    ...(pageSize !== DEFAULT_REPORT_PAGE_SIZE ? { pageSize: String(pageSize) } : {}),
+  };
+  const dailyPage = paginateRows(daily.rows, requestedPage, pageSize);
+  const monthlyPage = paginateRows(monthly.rows, requestedPage, pageSize);
+  const pagerParams = {
+    view,
+    ...(view === "daily"
+      ? { date }
+      : { month: String(month), year: String(year) }),
+    ...baseFilterParams,
+  };
 
   const dailyHref = (d: string) =>
     `/admin/reports${qs({ view: "daily", date: d, ...baseFilterParams })}`;
@@ -112,6 +173,7 @@ export default async function AdminReportsPage({
     status:
       r.status === "COMPLETE" ? "ครบ"
       : r.status === "WORKING" ? "กำลังทำงาน"
+      : r.status === "MISSED_CHECKOUT" ? "ไม่ได้เช็กเอาท์"
       : r.status === "NO_CHECKIN" ? "ยังไม่เช็กอิน"
       : r.status === "SICK" ? "ลาป่วย"
       : r.status === "PERSONAL" ? "ลากิจ"
@@ -136,7 +198,7 @@ export default async function AdminReportsPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="admin-reports-head flex flex-wrap items-center gap-3">
         <header className="mr-auto">
           <h1 className="m-0 text-2xl font-bold leading-snug sm:text-[28px]">รายงานชั่วโมงทำงาน</h1>
           <p className="muted mt-0.5 text-[15px]">
@@ -282,7 +344,7 @@ export default async function AdminReportsPage({
       <div className="card p-4 sm:p-5">
         <form
           method="get"
-          className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto]"
+          className="report-filter"
           role="search"
           aria-label="ค้นหารายงาน"
         >
@@ -295,7 +357,7 @@ export default async function AdminReportsPage({
               <input type="hidden" name="year" value={year} />
             </>
           )}
-          <div className="relative min-w-0">
+          <div className="report-search relative min-w-0">
             <span aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8696ae]">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
             </span>
@@ -310,7 +372,18 @@ export default async function AdminReportsPage({
               className="input !min-h-[48px] !pl-11"
             />
           </div>
-          <label htmlFor="rep-shop" className="sr-only">ตัวกรองรหัสร้าน</label>
+          <label htmlFor="rep-term" className="sr-only">เลือกภาคเรียน</label>
+          <select
+            id="rep-term"
+            name="termId"
+            defaultValue={termId}
+            className="input !min-h-[48px] w-full"
+          >
+            {terms.map((term) => (
+              <option key={term.id} value={term.id}>ภาค {term.semester}/{term.academicYear}</option>
+            ))}
+          </select>
+          <label htmlFor="rep-shop" className="sr-only">ตัวกรองสาขาฝึกงาน</label>
           <select
             id="rep-shop"
             name="shopCode"
@@ -320,6 +393,27 @@ export default async function AdminReportsPage({
             <option value="">รหัสร้าน (ทั้งหมด)</option>
             {shopOptions.map((code) => (
               <option key={code} value={code}>{code}</option>
+            ))}
+          </select>
+          <label htmlFor="rep-grade" className="sr-only">ชั้นปี</label>
+          <select id="rep-grade" name="gradeLevel" defaultValue={gradeLevel ?? ""} className="input !min-h-[48px] w-full">
+            <option value="">ทุกชั้นปี</option>
+            {[...new Set(classGroupOptions.map((group) => group.yearLevel))].sort((a, b) => a - b).map((year) => <option key={year} value={year}>ปี {year}</option>)}
+          </select>
+          <label htmlFor="rep-section" className="sr-only">ห้อง</label>
+          <select id="rep-section" name="section" defaultValue={section} className="input !min-h-[48px] w-full">
+            <option value="">ทุกห้อง</option>
+            {[...new Set(classGroupOptions.filter((group) => !gradeLevel || group.yearLevel === gradeLevel).map((group) => group.section))].sort().map((room) => <option key={room} value={room}>ห้อง {room}</option>)}
+          </select>
+          <label htmlFor="rep-page-size" className="sr-only">จำนวนรายการต่อหน้า</label>
+          <select
+            id="rep-page-size"
+            name="pageSize"
+            defaultValue={String(pageSize)}
+            className="input !min-h-[48px] w-full"
+          >
+            {REPORT_PAGE_SIZES.map((size) => (
+              <option key={size} value={size}>{size} / หน้า</option>
             ))}
           </select>
           <button type="submit" className="btn btn-primary w-full sm:w-28">ค้นหา</button>
@@ -346,7 +440,7 @@ export default async function AdminReportsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {daily.rows.map((row) => (
+                  {dailyPage.rows.map((row) => (
                     <tr key={row.user.id}>
                       <td>
                         <span className="flex items-center gap-3">
@@ -388,6 +482,14 @@ export default async function AdminReportsPage({
               </table>
             </div>
           )}
+          <Pager
+            pathname="/admin/reports"
+            params={pagerParams}
+            page={dailyPage.page}
+            totalPages={dailyPage.totalPages}
+            numbered
+            summary={`แสดง ${daily.rows.length === 0 ? 0 : dailyPage.start + 1}–${dailyPage.end} จาก ${daily.rows.length} คน`}
+          />
         </section>
       ) : (
         <section aria-label="รายงานรายเดือน" className="card overflow-hidden">
@@ -410,7 +512,7 @@ export default async function AdminReportsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {monthly.rows.map((row) => (
+                  {monthlyPage.rows.map((row) => (
                     <tr key={row.user.id}>
                       <td>
                         <span className="flex items-center gap-3">
@@ -438,7 +540,7 @@ export default async function AdminReportsPage({
                       </td>
                       <td>
                         <Link
-                          href={`/admin/reports/${row.user.id}${qs({ month: String(month), year: String(year) })}`}
+                          href={`/admin/reports/${row.user.id}${qs({ month: String(month), year: String(year), ...(termId ? { termId } : {}) })}`}
                           className="whitespace-nowrap text-sm font-medium text-[#1750b8] no-underline hover:underline"
                         >
                           ดูรายละเอียด ›
@@ -450,6 +552,14 @@ export default async function AdminReportsPage({
               </table>
             </div>
           )}
+          <Pager
+            pathname="/admin/reports"
+            params={pagerParams}
+            page={monthlyPage.page}
+            totalPages={monthlyPage.totalPages}
+            numbered
+            summary={`แสดง ${monthly.rows.length === 0 ? 0 : monthlyPage.start + 1}–${monthlyPage.end} จาก ${monthly.rows.length} คน`}
+          />
         </section>
       )}
     </div>

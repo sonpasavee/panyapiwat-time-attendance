@@ -31,12 +31,15 @@ export async function GET(request: Request) {
         ? monthYear(query)
         : undefined;
 
-    const where = buildAdminAttendanceFilter({
+    const where = await buildAdminAttendanceFilter({
       date: filters.date,
       monthRange: month
         ? monthRange(month.year, month.month)
         : undefined,
       shopCode: filters.shopCode,
+      gradeLevel: filters.gradeLevel,
+      section: filters.section,
+      academicTermId: filters.academicTermId,
       status: filters.status,
       query: filters.q,
     });

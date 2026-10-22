@@ -28,6 +28,7 @@ export async function getAdminMonthlyReport(
   filter: {
     shopCode?: string;
     userId?: string;
+    academicTermId?: string;
   },
 ) {
   const rows = await listAdminMonthlyAttendance(

@@ -351,6 +351,58 @@
   .fin-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .fin-head-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .fin-view {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .fin-view::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fin-view a {
+    flex: none;
+    padding: 0 14px;
+    white-space: nowrap;
+  }
+
+  .fin-monthnav {
+    flex: 1 1 180px;
+    justify-content: space-between;
+  }
+
+  .fin-monthnav span {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .fin-filter {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .fin-search {
+    grid-column: 1 / -1;
+  }
+
+  .fin-shop {
+    flex: none;
+    min-width: 0;
+  }
+
+  .fin-filter > .btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }
 
 @media (max-width: 640px) {

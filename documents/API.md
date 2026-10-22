@@ -25,13 +25,13 @@ Pagination: `page` defaults to 1; `pageSize` defaults to 20 and is capped at 100
 | Method and endpoint | Access | Purpose |
 |---|---|---|
 | `POST /api/attendance/check-in` | STUDENT | Multipart: required `image` (JPEG/PNG/WebP, ≤5 MB, magic bytes checked), `cashAmount` / `truemoneyAmount` (nonnegative decimal, up to 2 places, optional — at least one required) and optional `note` (≤1000). Returns `{ attendance, moneySummary }` with status `201`. |
-| `POST /api/attendance/check-out` | STUDENT | Same multipart fields; requires today's check-in. Returns `{ attendance, moneySummary }`. |
+| `POST /api/attendance/check-out` | STUDENT | Same multipart fields; requires an open shift from today or the previous day (within 24 hours), so checking out after midnight works. Returns `{ attendance, moneySummary }`. |
 | `GET /api/attendance/me` | STUDENT | Own attendance, paginated; optional `month`/`year`. |
-| `GET /api/attendance/me/today` | STUDENT | `{ checkedIn, checkedOut, attendance \| null, moneySummary \| null }` for today. |
+| `GET /api/attendance/me/today` | STUDENT | `{ checkedIn, checkedOut, attendance \| null, moneySummary \| null }`. If today has no record, returns the still-open shift from the previous day (within 24 hours) so it can be checked out. |
 | `GET /api/attendance/me/{id}` | STUDENT | Own attendance detail only; other users' records return `404`. |
 | `GET /api/attendance/me/monthly-summary?month=&year=` | STUDENT | Totals for complete shifts; excludes incomplete days and does not deduct breaks. |
 | `GET /api/money-tracker/me?month=&year=` | STUDENT | Personal money records and CASH/TRUEMONEY in/out/net totals. |
-| `POST /api/leaves` | STUDENT | JSON `{ "leaveType":"SICK", "startDate":"2026-10-13", "endDate":"2026-10-13", "reason":"..." }`. Types: `HOLIDAY`, `SICK`, `PERSONAL`; `type` is accepted as an alias of `leaveType`. No approval step. Returns `{ leave }` with status `201`. |
+| `POST /api/leaves` | STUDENT | JSON `{ "leaveType":"SICK", "startDate":"2026-10-13", "endDate":"2026-10-13", "reason":"..." }`. Types: `HOLIDAY`, `SICK`, `PERSONAL`; `type` is accepted as an alias of `leaveType`. No approval step. Dates in the past are rejected, and the range must not overlap another leave or any attendance day. Returns `{ leave }` with status `201`. |
 | `GET /api/leaves` | STUDENT | Alias of `GET /api/leaves/me`; paginated own leave records. |
 | `GET /api/leaves/me` | STUDENT | Own leave records, paginated. |
 | `GET/PATCH/DELETE /api/leaves/me/{id}` | STUDENT | Read/update/delete own leave only. PATCH replaces the create fields (not a partial patch). |
@@ -44,7 +44,7 @@ All admin routes require `ADMIN`; other roles get `403 FORBIDDEN`.
 |---|---|---|
 | `GET /api/admin/users` | ADMIN | Search via `q`; filters `role`, `shopCode`, `gradeLevel`; paginated. |
 | `POST /api/admin/users` | ADMIN | Create one account. Students require both `studentId` and `employeeCode`; `employeeCode` (or `studentId`) becomes the initial password. Returns `{ user }` with status `201`. |
-| `POST /api/admin/users/import` | ADMIN | JSON `{ "rows": [...] }`, max 500 rows / 1 MiB. Each row requires `line, studentId, firstName, lastName, employeeCode`; `shopCode, gradeLevel` are optional. `employeeCode` is the initial password and is stored only as an Argon2id hash. Duplicate identifiers within the file or database reject the entire batch. Success: `{ "importedCount": n }` with status `201`. |
+| `POST /api/admin/users/import` | ADMIN | JSON `{ "rows": [...] }`, max 500 rows / 1 MiB. Each row requires `line, studentId, firstName, lastName, employeeCode, branchName, programLevel, yearLevel, section, academicYear, semester`. `employeeCode` is the initial password and is stored only as an Argon2id hash. Duplicate identifiers within the file or database reject the entire batch. Success: `{ "importedCount": n }` with status `201`. |
 | `GET/PATCH/DELETE /api/admin/users/{id}` | ADMIN | Read/update/delete profile and account status. DELETE is refused for your own account (`409 SELF_DELETE_PROTECTION`) and for users with attendance or leave history (`409 USER_HAS_RECORDS`). |
 | `PATCH /api/admin/users/{id}/role` | ADMIN | JSON `{ "role": "ADMIN"\|"STUDENT" }`; the last active admin is protected (`409 LAST_ADMIN_PROTECTION`). |
 | `POST /api/admin/users/{id}/reset-password` | ADMIN | Resets the password to `employeeCode` (or `studentId` when no employeeCode) and revokes the user's sessions. Returns `{ user, temporaryPassword }` — treat the response as sensitive. |
@@ -65,11 +65,11 @@ All admin routes require `ADMIN`; other roles get `403 FORBIDDEN`.
 
 | HTTP | Codes | Meaning |
 |---|---|---|
-| 400 | `VALIDATION_ERROR`, `INVALID_JSON`, `INVALID_ENCODING`, `INVALID_IMAGE` | Invalid body, query/path parameter, image or amount. |
+| 400 | `VALIDATION_ERROR`, `PAST_LEAVE_NOT_ALLOWED`, `INVALID_JSON`, `INVALID_ENCODING`, `INVALID_IMAGE` | Invalid body, query/path parameter, image, amount, or a leave/holiday date in the past. |
 | 401 | `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `INVALID_CURRENT_PASSWORD`, `UNAUTHORIZED` | Missing/invalid session, wrong credentials, wrong current password, or invalid cron token. |
 | 403 | `CSRF_REJECTED`, `FORBIDDEN` | Missing/mismatched `Origin`, or insufficient role. |
 | 404 | `NOT_FOUND` | Record not found (including another user's record). |
-| 409 | `CONFLICT`, `IMPORT_CONFLICT`, `USER_CONFLICT`, `ALREADY_CHECKED_OUT`, `CHECK_IN_REQUIRED`, `INVALID_TIME_ORDER`, `LAST_ADMIN_PROTECTION`, `SELF_DELETE_PROTECTION`, `USER_HAS_RECORDS` | Duplicate data, invalid attendance state, or protected account operation. |
+| 409 | `CONFLICT`, `IMPORT_CONFLICT`, `USER_CONFLICT`, `ALREADY_CHECKED_OUT`, `CHECK_IN_REQUIRED`, `OPEN_ATTENDANCE_EXISTS`, `ON_LEAVE`, `LEAVE_OVERLAP`, `ATTENDANCE_EXISTS`, `INVALID_TIME_ORDER`, `LAST_ADMIN_PROTECTION`, `SELF_DELETE_PROTECTION`, `USER_HAS_RECORDS` | Duplicate data, leave/attendance conflict, invalid attendance state, or protected account operation. |
 | 410 | `REGISTRATION_DISABLED` | Self-registration is closed. |
 | 413 | `PAYLOAD_TOO_LARGE` | Import body over 1 MiB. |
 | 429 | `RATE_LIMITED` | Login identifier temporarily blocked after 10 failed attempts in a 15-minute window. |

@@ -2,15 +2,22 @@
 
 import { useState } from "react";
 import { decodeCsvBytes, type CsvEncoding } from "@/lib/csv-encoding";
+import { inferClassAndTerm, parseClassGroup } from "@/lib/import-parse";
+import * as XLSX from "xlsx";
 
 type ParsedRow = {
   line: number;
-  studentId: string; 
+  studentId: string;
+  titlePrefix: string;
   firstName: string;
   lastName: string;
   employeeCode: string;
-  shopCode: string;
-  gradeLevel: string;
+  branchName: string;
+  programLevel: string;
+  yearLevel: string;
+  section: string;
+  academicYear: string;
+  semester: string;
   errors: string[];
 };
 
@@ -28,11 +35,58 @@ const HEADER_ALIASES: Record<string, string> = {
   "นามสกุล": "lastname",
   employeecode: "employeecode",
   "รหัสพนักงาน": "employeecode",
-  shopcode: "shopcode",
-  "รหัสร้าน": "shopcode",
-  gradelevel: "gradelevel",
+  shopcode: "branchname",
+  branchname: "branchname",
+  class: "classgroup",
+  classgroup: "classgroup",
+  titleprefix: "titleprefix",
+  "รหัสร้าน": "branchname",
+  gradelevel: "yearlevel",
+  yearlevel: "yearlevel",
+  programlevel: "programlevel",
+  section: "section",
+  academicyear: "academicyear",
+  semester: "semester",
   "ชั้นปี": "gradelevel",
+  "ปีการศึกษา": "academicyear",
+  "ภาคเรียน": "semester",
+  "ภาคเรียนที่": "semester",
+  "เทอม": "semester",
 };
+
+HEADER_ALIASES["\u0e23\u0e2b\u0e31\u0e2a\u0e19\u0e31\u0e01\u0e28\u0e36\u0e01\u0e29\u0e32"] = "studentid";
+HEADER_ALIASES["\u0e23\u0e2b\u0e31\u0e2a\u0e19\u0e31\u0e01\u0e40\u0e23\u0e35\u0e22\u0e19"] = "studentid";
+HEADER_ALIASES["\u0e23\u0e2b\u0e31\u0e2a\u0e1e\u0e19\u0e31\u0e01\u0e07\u0e32\u0e19"] = "employeecode";
+HEADER_ALIASES["\u0e2a\u0e01\u0e38\u0e25"] = "lastname";
+HEADER_ALIASES["\u0e2a\u0e32\u0e02\u0e32\u0e23\u0e49\u0e32\u0e19"] = "branchname";
+HEADER_ALIASES["\u0e2a\u0e32\u0e02\u0e32\u0e1d\u0e36\u0e01\u0e07\u0e32\u0e19"] = "branchname";
+HEADER_ALIASES["\u0e0a\u0e31\u0e49\u0e19"] = "classgroup";
+HEADER_ALIASES["\u0e0a\u0e31\u0e49\u0e19\u0e40\u0e23\u0e35\u0e22\u0e19"] = "classgroup";
+HEADER_ALIASES["\u0e17\u0e35\u0e48"] = "rownumber";
+HEADER_ALIASES["\u0e23\u0e2b\u0e31\u0e2a\u0e23\u0e49\u0e32\u0e19"] = "branchname";
+HEADER_ALIASES["\u0e0a\u0e31\u0e49\u0e19\u0e1b\u0e35"] = "yearlevel";
+
+function spreadsheetCellToString(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return String(value).trim();
+}
+
+function readWorkbookRecords(buffer: ArrayBuffer): CsvRecord[] {
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
+  const firstSheet = workbook.SheetNames[0];
+  if (!firstSheet) throw new Error("ไม่พบ worksheet ในไฟล์ Excel");
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[firstSheet], {
+    header: 1,
+    raw: true,
+    defval: "",
+    blankrows: true,
+  });
+  return matrix.map((cells, index) => ({
+    line: index + 1,
+    cells: cells.map(spreadsheetCellToString),
+  }));
+}
 
 function normalizeHeader(value: string) {
   const header = value.replace(/^\uFEFF/, "").trim().toLowerCase();
@@ -131,13 +185,15 @@ function validate(rows: ParsedRow[]): ParsedRow[] {
         seenIdentifiers.set(value, row.line);
       }
     }
-    if (row.shopCode && row.shopCode.length > 40)
-      errors.push("รหัสร้านยาวเกิน 40 ตัวอักษร");
-    if (row.gradeLevel) {
-      const n = Number(row.gradeLevel);
-      if (!Number.isInteger(n) || n < 1 || n > 20)
-        errors.push("ชั้นปีต้องเป็นเลข 1–20");
-    }
+    if (!row.branchName || row.branchName.length > 120) errors.push("กรุณาระบุสาขาร้านไม่เกิน 120 ตัวอักษร");
+    if (!row.programLevel || row.programLevel.length > 40) errors.push("กรุณาระบุระดับการศึกษาไม่เกิน 40 ตัวอักษร");
+    const yearLevel = Number(row.yearLevel);
+    if (!Number.isInteger(yearLevel) || yearLevel < 1 || yearLevel > 20) errors.push("ชั้นปีต้องเป็นเลข 1–20");
+    if (!row.section || row.section.length > 40) errors.push("กรุณาระบุห้องไม่เกิน 40 ตัวอักษร");
+    const academicYear = Number(row.academicYear);
+    if (!Number.isInteger(academicYear) || academicYear < 2000 || academicYear > 2700) errors.push("ปีการศึกษาไม่ถูกต้อง");
+    const semester = Number(row.semester);
+    if (!Number.isInteger(semester) || semester < 1 || semester > 3) errors.push("ภาคเรียนต้องเป็นเลข 1–3");
     return { ...row, errors };
   });
 }
@@ -145,7 +201,7 @@ function validate(rows: ParsedRow[]): ParsedRow[] {
 export default function ImportForm() {
   const [rows, setRows] = useState<ParsedRow[] | null>(null);
   const [fileName, setFileName] = useState("");
-  const [fileEncoding, setFileEncoding] = useState<CsvEncoding | null>(null);
+  const [fileEncoding, setFileEncoding] = useState<CsvEncoding | "XLSX" | null>(null);
   const [fileError, setFileError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [importedCount, setImportedCount] = useState<number | null>(null);
@@ -157,8 +213,9 @@ export default function ImportForm() {
     setSubmitError("");
     setFileEncoding(null);
     setFileName(file.name);
-    if (!/\.csv$/i.test(file.name)) {
-      setFileError("กรุณาเลือกไฟล์ .csv");
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    if (!isXlsx && !/\.csv$/i.test(file.name)) {
+      setFileError("กรุณาเลือกไฟล์ .xlsx หรือ .csv");
       setRows(null);
       return;
     }
@@ -168,31 +225,46 @@ export default function ImportForm() {
       return;
     }
     try {
-      const decoded = decodeCsvBytes(await file.arrayBuffer());
-      const text = decoded.text;
-      const records = parseCsv(text).filter(
+      const buffer = await file.arrayBuffer();
+      const decoded = isXlsx ? null : decodeCsvBytes(buffer);
+      const records = (isXlsx ? readWorkbookRecords(buffer) : parseCsv(decoded!.text)).filter(
         ({ cells }) => cells.some((value) => value.trim().length > 0),
       );
       if (records.length < 2) {
         throw new Error("ไฟล์ว่างเปล่า (ต้องมีแถวหัวคอลัมน์และข้อมูลอย่างน้อย 1 แถว)");
       }
-      const header = records[0].cells.map(normalizeHeader);
-      if (new Set(header).size !== header.length) {
+      const headerIndex = records.findIndex(({ cells }) => {
+        const candidate = cells.map(normalizeHeader);
+        return candidate.includes("studentid") &&
+          (candidate.includes("employeecode") || candidate.includes("branchname") || candidate.includes("classgroup"));
+      });
+      if (headerIndex < 0) throw new Error("ไม่พบแถวหัวตารางที่มีรหัสนักศึกษาและรหัสพนักงาน/สาขา/ชั้น");
+      const header = records[headerIndex].cells.map(normalizeHeader);
+      const nonEmptyHeader = header.filter(Boolean);
+      if (new Set(nonEmptyHeader).size !== nonEmptyHeader.length) {
         throw new Error("พบชื่อหัวคอลัมน์ซ้ำ กรุณาตรวจสอบไฟล์");
       }
       const idx = (name: string) => header.indexOf(name);
-      const requiredHeaders = ["studentid", "firstname", "lastname", "employeecode"];
+      const requiredHeaders = ["studentid", "employeecode"];
       const missingHeaders = requiredHeaders.filter((name) => idx(name) < 0);
       if (missingHeaders.length > 0) {
         throw new Error(`หัวคอลัมน์ต้องมี ${requiredHeaders.join(", ")}`);
       }
 
-      const dataRecords = records.slice(1);
+      const title = records.slice(0, headerIndex).flatMap(({ cells }) => cells).join(" ");
+      const inferred = inferClassAndTerm(title);
+      const studentIdIndex = idx("studentid");
+      const employeeCodeIndex = idx("employeecode");
+      const hasUnlabeledPrefixColumn = idx("firstname") < 0 && employeeCodeIndex - studentIdIndex >= 4;
+      const inferredFirstNameIndex = studentIdIndex + (hasUnlabeledPrefixColumn ? 2 : 1);
+      const firstNameIndex = idx("firstname") >= 0 ? idx("firstname") : inferredFirstNameIndex;
+      const lastNameIndex = idx("lastname") >= 0 ? idx("lastname") : firstNameIndex + 1;
+      const dataRecords = records.slice(headerIndex + 1);
       if (dataRecords.length > MAX_ROWS) {
         throw new Error(`นำเข้าได้ครั้งละไม่เกิน ${MAX_ROWS} รายชื่อ`);
       }
       const malformedRecord = dataRecords.find(
-        ({ cells }) => cells.length !== header.length,
+        ({ cells }) => cells.length <= Math.max(studentIdIndex, idx("employeecode"), idx("branchname"), idx("classgroup")),
       );
       if (malformedRecord) {
         throw new Error(`จำนวนคอลัมน์ในแถว ${malformedRecord.line} ไม่ตรงกับหัวตาราง`);
@@ -202,19 +274,26 @@ export default function ImportForm() {
           const at = idx(name);
           return at >= 0 ? (cells[at] ?? "") : "";
         };
+        const getAt = (at: number) => at >= 0 ? (cells[at] ?? "") : "";
+        const classGroup = parseClassGroup(get("classgroup"));
         return {
           line,
           studentId: get("studentid"),
-          firstName: get("firstname"),
-          lastName: get("lastname"),
+          titlePrefix: get("titleprefix") || (hasUnlabeledPrefixColumn ? getAt(studentIdIndex + 1) : ""),
+          firstName: get("firstname") || getAt(firstNameIndex),
+          lastName: get("lastname") || getAt(lastNameIndex),
           employeeCode: get("employeecode"),
-          shopCode: get("shopcode"),
-          gradeLevel: get("gradelevel"),
+          branchName: get("branchname"),
+          programLevel: get("programlevel") || classGroup?.programLevel || inferred.programLevel,
+          yearLevel: get("yearlevel") || classGroup?.yearLevel || inferred.yearLevel,
+          section: get("section") || classGroup?.section || inferred.section,
+          academicYear: get("academicyear") || inferred.academicYear,
+          semester: get("semester") || inferred.semester,
           errors: [],
         };
       });
       setFileError("");
-      setFileEncoding(decoded.encoding);
+      setFileEncoding(isXlsx ? "XLSX" : decoded!.encoding);
       setRows(validate(parsed));
     } catch (error) {
       setFileError(error instanceof Error ? error.message : "อ่านไฟล์ CSV ไม่สำเร็จ");
@@ -236,11 +315,16 @@ export default function ImportForm() {
           rows: rows.map((row) => ({
             line: row.line,
             studentId: row.studentId,
+            titlePrefix: row.titlePrefix,
             firstName: row.firstName,
             lastName: row.lastName,
             employeeCode: row.employeeCode,
-            shopCode: row.shopCode,
-            gradeLevel: row.gradeLevel,
+            branchName: row.branchName,
+            programLevel: row.programLevel,
+            yearLevel: Number(row.yearLevel),
+            section: row.section,
+            academicYear: Number(row.academicYear),
+            semester: Number(row.semester),
           })),
         }),
       });
@@ -256,7 +340,14 @@ export default function ImportForm() {
           typeof result.error.message === "string"
             ? result.error.message
             : "นำเข้ารายชื่อไม่สำเร็จ";
-        throw new Error(message);
+        const details = typeof result === "object" && result !== null && "error" in result &&
+          typeof result.error === "object" && result.error !== null && "details" in result.error
+            ? result.error.details
+            : undefined;
+        const detailText = details && typeof details === "object"
+          ? Object.entries(details).map(([field, value]) => `${field}: ${Array.isArray(value) ? value.join(", ") : JSON.stringify(value)}`).join(" | ")
+          : "";
+        throw new Error(detailText ? `${message}: ${detailText}` : message);
       }
       if (
         typeof result !== "object" ||
@@ -278,7 +369,7 @@ export default function ImportForm() {
     <div className="flex flex-col gap-4">
       <div>
         <span id="import-file-label" className="field-label">
-          ไฟล์รายชื่อ (.csv)
+          ไฟล์รายชื่อ (.xlsx หรือ .csv)
         </span>
         <label
           htmlFor="import-file"
@@ -296,7 +387,7 @@ export default function ImportForm() {
         <input
           id="import-file"
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           className="sr-only"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -341,13 +432,17 @@ export default function ImportForm() {
                 </tr>
               </thead>
               <tbody>
-                {rows.slice(0, 100).map((r) => (
+                {rows.slice(0, 100).map((r, index) => (
                   <tr key={r.line}>
-                    <td>{r.line}</td>
+                    <td>{index + 1}</td>
                     <td>{r.studentId || "–"}</td>
                     <td>{r.employeeCode || "–"}</td>
                     <td>{`${r.firstName} ${r.lastName}`.trim() || "–"}</td>
-                    <td>{[r.shopCode, r.gradeLevel && `ปี ${r.gradeLevel}`].filter(Boolean).join(" • ") || "–"}</td>
+                    <td>{[
+                      r.branchName,
+                      [r.programLevel, r.yearLevel ? `ปี ${r.yearLevel}` : "", r.section ? `ห้อง ${r.section}` : ""].filter(Boolean).join(" "),
+                      r.semester && r.academicYear ? `ภาคเรียน ${r.semester}/${r.academicYear}` : "",
+                    ].filter(Boolean).join(" • ") || "–"}</td>
                     <td>
                       {r.errors.length === 0 ? (
                         <span className="badge badge-green">ผ่าน</span>

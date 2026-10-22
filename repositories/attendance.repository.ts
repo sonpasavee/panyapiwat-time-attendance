@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { currentEnrollmentSelect, enrollmentSelectForTerm, withEnrollmentView } from "@/repositories/enrollment-view";
 
 export function createAttendance(data: Prisma.AttendanceCreateArgs["data"]) {
   return prisma.attendance.create({
@@ -67,6 +68,30 @@ export function findAttendanceByUserAndDateWithMoney(
   });
 }
 
+// รับกะที่ยังไม่เช็กเอาท์ ซึ่งอาจเริ่มเมื่อวานและเพิ่งข้ามเที่ยงคืน
+export function findLatestOpenAttendance(userId: string, since: Date) {
+  return prisma.attendance.findFirst({
+    where: {
+      userId,
+      checkOutAt: null,
+      checkInAt: { gte: since },
+    },
+    orderBy: { checkInAt: "desc" },
+  });
+}
+
+export function findLatestOpenAttendanceWithMoney(userId: string, since: Date) {
+  return prisma.attendance.findFirst({
+    where: {
+      userId,
+      checkOutAt: null,
+      checkInAt: { gte: since },
+    },
+    include: { money: true },
+    orderBy: { checkInAt: "desc" },
+  });
+}
+
 export function findAttendanceByIdAndUser(id: string, userId: string) {
   return prisma.attendance.findFirst({
     where: { id, userId },
@@ -79,6 +104,7 @@ export async function listAdminAttendance(
   skip: number,
   take: number,
   sort: "asc" | "desc",
+  academicTermId?: string,
 ) {
   const [items, total] = await Promise.all([
     prisma.attendance.findMany({
@@ -92,7 +118,7 @@ export async function listAdminAttendance(
             lastName: true,
             studentId: true,
             employeeCode: true,
-            shopCode: true,
+            ...(academicTermId ? enrollmentSelectForTerm(academicTermId) : currentEnrollmentSelect),
           },
         },
       },
@@ -102,7 +128,10 @@ export async function listAdminAttendance(
     }),
     prisma.attendance.count({ where }),
   ]);
-  return { items, total };
+  return {
+    items: items.map((item) => ({ ...item, user: withEnrollmentView(item.user) })),
+    total,
+  };
 }
 
 export function countAttendance(where: Prisma.AttendanceWhereInput) {
@@ -112,18 +141,22 @@ export function countAttendance(where: Prisma.AttendanceWhereInput) {
 export function countMonthlyAttendanceDays(range: {
   gte: Date;
   lt: Date;
-}) {
+}, academicTermId?: string) {
   return prisma.attendance.groupBy({
     by: ["userId"],
     where: {
       workDate: range,
-      user: { role: "STUDENT", isActive: true },
+      user: {
+        role: "STUDENT",
+        isActive: true,
+        ...(academicTermId ? { enrollments: { some: { academicTermId } } } : {}),
+      },
     },
     _count: { _all: true },
   });
 }
 
-export function findAdminAttendanceById(id: string) {
+export function findAdminAttendanceById(id: string, academicTermId?: string) {
   return prisma.attendance.findUnique({
     where: { id },
     include: {
@@ -135,11 +168,11 @@ export function findAdminAttendanceById(id: string) {
           lastName: true,
           studentId: true,
           employeeCode: true,
-          shopCode: true,
+          ...(academicTermId ? enrollmentSelectForTerm(academicTermId) : currentEnrollmentSelect),
         },
       },
     },
-  });
+  }).then((item) => item ? { ...item, user: withEnrollmentView(item.user) } : null);
 }
 
 export async function listUserAttendance(

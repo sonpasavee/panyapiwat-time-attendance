@@ -12,7 +12,7 @@ import {
 } from "@/lib/format";
 import { monthRange } from "@/lib/time";
 import { monthYear } from "@/validators/api";
-import { getUserProfile } from "@/services/user.service";
+import { getUserProfile, getAcademicTerms } from "@/services/user.service";
 import {
   getTodayAttendance,
   listMyAttendance,
@@ -20,7 +20,7 @@ import {
 import { getMyMonthlySummary } from "@/services/monthly-report.service";
 import { getMyMoneyReport } from "@/services/money-tracker.service";
 import { summarizeDailyMoney } from "@/services/money-tracker.logic";
-import { listMyLeaves } from "@/services/leave.service";
+import { getLeaveForDate, listMyLeaves } from "@/services/leave.service";
 
 import AttendanceForm from "../components/attendance-form";
 import WorkTimer from "../components/work-timer";
@@ -62,8 +62,18 @@ function TimelineDot({ state }: { state: "done" | "current" | "todo" }) {
   );
 }
 
-export default async function StudentDashboardPage() {
+export default async function StudentDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ termId?: string | string[] }>;
+}) {
   const session = await requireStudentPage();
+  const params = await searchParams;
+  const requestedTerm = Array.isArray(params.termId) ? params.termId[0] : params.termId;
+  const terms = await getAcademicTerms();
+  const academicTermId = terms.some((term) => term.id === requestedTerm)
+    ? requestedTerm
+    : terms[0]?.id;
   const now = new Date();
   const { month, year } = monthYear(new URLSearchParams());
   const todayKey = bangkokDateKey(now);
@@ -71,7 +81,7 @@ export default async function StudentDashboardPage() {
 
   const [profile, today, summary, money, leaves, history, monthRows, allLeaves] =
     await Promise.all([
-      getUserProfile(session.id),
+      getUserProfile(session.id, academicTermId),
       getTodayAttendance(session.id),
       getMyMonthlySummary(session.id, month, year),
       getMyMoneyReport(session.id, month, year),
@@ -88,6 +98,16 @@ export default async function StudentDashboardPage() {
 
   const checkedIn = !!today;
   const checkedOut = !!today?.checkOutAt;
+  const leaveForActiveDate = await getLeaveForDate(
+    session.id,
+    today?.workDate ?? new Date(`${todayKey}T00:00:00.000Z`),
+  );
+  const leaveLabel =
+    leaveForActiveDate?.type === "SICK"
+      ? "ลาป่วย"
+      : leaveForActiveDate?.type === "PERSONAL"
+        ? "ลากิจ"
+        : "วันหยุด";
 
   const rowByDate = new Map(
     monthRows.items.map((r) => [bangkokDateKey(r.workDate), r]),
@@ -129,9 +149,11 @@ export default async function StudentDashboardPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm muted">
-            ร้าน {profile.shopCode ?? "–"} • ชั้นปี {profile.gradeLevel ?? "–"}
+            ร้าน {profile.shopCode ?? "–"} • ชั้นปี {[profile.programLevel, profile.yearLevel, profile.section].filter(Boolean).join(" ") || "–"}
           </span>
-          {checkedOut ? (
+          {!checkedIn && leaveForActiveDate ? (
+            <LeaveBadge type={leaveForActiveDate.type} />
+          ) : checkedOut ? (
             <Badge tone="green">ครบ</Badge>
           ) : checkedIn ? (
             <span className="inline-flex items-center gap-2 rounded-full bg-[#dbeafe] px-4 py-2 text-sm font-semibold text-[#1e3a8a]">
@@ -143,6 +165,16 @@ export default async function StudentDashboardPage() {
           )}
         </div>
       </header>
+
+      {terms.length > 0 && (
+        <form method="get" className="flex flex-wrap items-center gap-3">
+          <label htmlFor="student-term" className="text-sm font-medium">ภาคเรียนของข้อมูลโปรไฟล์</label>
+          <select id="student-term" name="termId" defaultValue={academicTermId} className="input w-auto">
+            {terms.map((term) => <option key={term.id} value={term.id}>ภาค {term.semester}/{term.academicYear}</option>)}
+          </select>
+          <button className="btn btn-outline" type="submit">ดูภาคเรียน</button>
+        </form>
+      )}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         {/* LEFT */}
@@ -206,9 +238,20 @@ export default async function StudentDashboardPage() {
 
             <div className="mt-6 border-t border-[#e3e9f2] pt-6">
               <h3 className="m-0 text-[17px] font-semibold">
-                {!checkedIn ? "เช็กอินเข้างาน" : !checkedOut ? "เช็กเอาท์ออกงาน" : "บันทึกวันนี้ครบแล้ว"}
+                {leaveForActiveDate
+                  ? "วันนี้หยุด/ลา"
+                  : !checkedIn
+                    ? "เช็กอินเข้างาน"
+                    : !checkedOut
+                      ? "เช็กเอาท์ออกงาน"
+                      : "บันทึกวันนี้ครบแล้ว"}
               </h3>
-              {!checkedIn ? (
+              {leaveForActiveDate ? (
+                <AttendanceForm
+                  action={!checkedIn ? "check-in" : "check-out"}
+                  blockedMessage={`วันนี้มีรายการ${leaveLabel} จึงไม่สามารถเช็กอินหรือเช็กเอาท์ได้`}
+                />
+              ) : !checkedIn ? (
                 <AttendanceForm action="check-in" />
               ) : !checkedOut ? (
                 <AttendanceForm action="check-out" />

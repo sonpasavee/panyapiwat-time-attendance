@@ -7,19 +7,16 @@ const studentImportRowSchema = z
   .object({
     line: z.number().int().positive(),
     studentId: z.string().trim().min(1).max(40),
+    titlePrefix: z.string().trim().max(40).optional().or(z.literal("")),
     firstName: z.string().trim().min(1).max(80),
     lastName: z.string().trim().min(1).max(80),
     employeeCode: z.string().trim().min(1).max(40),
-    shopCode: z
-      .string()
-      .trim()
-      .max(40)
-      .optional()
-      .or(z.literal("")),
-    gradeLevel: z.preprocess(
-      (value) => (value === "" || value === undefined ? undefined : value),
-      z.coerce.number().int().min(1).max(20).optional(),
-    ),
+    branchName: z.string().trim().min(1).max(120),
+    programLevel: z.string().trim().min(1).max(40),
+    yearLevel: z.coerce.number().int().min(1).max(20),
+    section: z.string().trim().min(1).max(40),
+    academicYear: z.coerce.number().int().min(2000).max(2700),
+    semester: z.coerce.number().int().min(1).max(3),
   })
   .strict();
 
@@ -117,6 +114,7 @@ export const idSchema = z.string().uuid();
 // ============================================
 
 export const adminUsersQuerySchema = z.object({
+  academicTermId: z.string().uuid().optional(),
   role: z.enum(["STUDENT", "ADMIN"]).optional(),
 
   shopCode: z
@@ -132,6 +130,8 @@ export const adminUsersQuerySchema = z.object({
     .max(20)
     .optional(),
 
+  section: z.string().trim().max(20).optional(),
+
   q: z
     .string()
     .trim()
@@ -144,6 +144,7 @@ export const adminUsersQuerySchema = z.object({
 // ============================================
 
 export const adminAttendanceQuerySchema = z.object({
+  academicTermId: z.string().uuid().optional(),
   date: z.string().date().optional(),
 
   status: z
@@ -158,6 +159,9 @@ export const adminAttendanceQuerySchema = z.object({
     .max(40)
     .optional(),
 
+  gradeLevel: z.coerce.number().int().min(1).max(20).optional(),
+  section: z.string().trim().max(20).optional(),
+
   q: z
     .string()
     .trim()
@@ -170,6 +174,7 @@ export const adminAttendanceQuerySchema = z.object({
 // ============================================
 
 export const adminLeavesQuerySchema = z.object({
+  academicTermId: z.string().uuid().optional(),
   type: z
     .enum(["HOLIDAY", "SICK", "PERSONAL"])
     .optional(),
@@ -195,6 +200,10 @@ export const adminLeavesQuerySchema = z.object({
     .trim()
     .max(40)
     .optional(),
+
+  gradeLevel: z.coerce.number().int().min(1).max(20).optional(),
+  section: z.string().trim().max(20).optional(),
+  q: z.string().trim().max(100).optional(),
 });
 
 // ============================================
@@ -264,20 +273,6 @@ export const profileSchema = z
       .max(80)
       .optional(),
 
-    gradeLevel: z
-      .number()
-      .int()
-      .min(1)
-      .max(20)
-      .nullable()
-      .optional(),
-
-    shopCode: z
-      .string()
-      .trim()
-      .max(40)
-      .nullable()
-      .optional(),
   })
   .strict();
 
@@ -287,6 +282,14 @@ export const profileSchema = z
 
 export const userAdminSchema = profileSchema
   .extend({
+    enrollment: z.object({
+      branchName: z.string().trim().min(1).max(120),
+      programLevel: z.string().trim().min(1).max(40),
+      yearLevel: z.number().int().min(1).max(20),
+      section: z.string().trim().min(1).max(40),
+      academicYear: z.number().int().min(2000).max(2700),
+      semester: z.number().int().min(1).max(3),
+    }).optional(),
     employeeCode: z
       .string()
       .trim()
@@ -363,13 +366,18 @@ export const userCreateSchema = z
       .max(40)
       .nullable()
       .optional(),
-    shopCode: z
+    branchName: z
       .string()
       .trim()
-      .max(40)
+      .min(1)
+      .max(120)
       .nullable()
       .optional(),
-    gradeLevel: z.number().int().min(1).max(20).nullable().optional(),
+    programLevel: z.string().trim().min(1).max(40).nullable().optional(),
+    yearLevel: z.number().int().min(1).max(20).nullable().optional(),
+    section: z.string().trim().min(1).max(40).nullable().optional(),
+    academicYear: z.number().int().min(2000).max(2700).nullable().optional(),
+    semester: z.number().int().min(1).max(3).nullable().optional(),
     role: z.enum(["ADMIN", "STUDENT"]).default("STUDENT"),
     isActive: z.boolean().default(true),
   })
@@ -389,6 +397,15 @@ export const userCreateSchema = z
           path: ["employeeCode"],
           message: "employeeCode is required for STUDENT",
         });
+      }
+      for (const field of ["branchName", "programLevel", "yearLevel", "section", "academicYear", "semester"] as const) {
+        if (value[field] == null) {
+          context.addIssue({
+            code: "custom",
+            path: [field],
+            message: `${field} is required for STUDENT`,
+          });
+        }
       }
     }
     if (!value.studentId && !value.employeeCode) {

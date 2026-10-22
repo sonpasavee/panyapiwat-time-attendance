@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { findUserIdsByLatestEnrollment } from "@/repositories/user.repository";
 import {
   checkoutAttendance,
   countAttendance,
@@ -9,6 +10,8 @@ import {
   findAttendanceByIdAndUser,
   findAttendanceByUserAndDate,
   findAttendanceByUserAndDateWithMoney,
+  findLatestOpenAttendance,
+  findLatestOpenAttendanceWithMoney,
   listAdminAttendance as listAdminAttendanceRecords,
   listMyAttendance as listMyAttendanceRecords,
   listUserAttendance as listUserAttendanceRecords,
@@ -17,6 +20,7 @@ import {
 import { bangkokWorkDate } from "@/lib/time";
 import { hideExpiredAttendancePhotos } from "@/lib/attendance-image-retention";
 import { deleteAttendanceImage, uploadAttendanceImage } from "@/lib/cloudinary";
+import { findLeaveCoveringDate } from "@/repositories/leave.repository";
 
 import { checkOutRuleError } from "@/services/attendance.logic";
 
@@ -26,6 +30,9 @@ type MoneyInput = {
   cashAmount?: string;
   truemoneyAmount?: string;
 };
+
+// อนุญาตให้กะที่เริ่มก่อนเที่ยงคืนเช็กเอาท์ต่อได้ไม่เกิน 24 ชั่วโมง
+const MAX_OPEN_SHIFT_MS = 24 * 60 * 60 * 1000;
 
 function moneyRows(direction: "IN" | "OUT", input: MoneyInput) {
   const rows = [
@@ -61,6 +68,30 @@ export async function checkIn(
     truemoneyAmount?: string;
   },
 ) {
+  const now = new Date();
+  const workDate = bangkokWorkDate(now);
+
+  const leave = await findLeaveCoveringDate(userId, workDate);
+  if (leave) {
+    throw new ApiError(
+      409,
+      "วันนี้มีวันหยุดหรือการลา ไม่สามารถเช็กอินได้",
+      "ON_LEAVE",
+    );
+  }
+
+  const openShift = await findLatestOpenAttendance(
+    userId,
+    new Date(now.getTime() - MAX_OPEN_SHIFT_MS),
+  );
+  if (openShift) {
+    throw new ApiError(
+      409,
+      "กรุณาเช็กเอาท์กะที่ยังค้างอยู่ก่อนเช็กอินใหม่",
+      "OPEN_ATTENDANCE_EXISTS",
+    );
+  }
+
   let image:
     | {
         url: string;
@@ -74,14 +105,12 @@ export async function checkIn(
       `attendance/${userId}/check-in`,
     );
 
-    const now = new Date();
-
     return await createAttendance({
       userId,
-      workDate: bangkokWorkDate(now),
+      workDate,
       checkInAt: now,
-      checkInPhotoUrl: image!.url,
-      checkInImagePublicId: image!.publicId,
+      checkInPhotoUrl: image.url,
+      checkInImagePublicId: image.publicId,
       checkInNote: input.note,
       money: {
         create: moneyRows("IN", input),
@@ -117,11 +146,26 @@ export async function checkOut(
     | undefined;
 
   try {
-    const workDate = bangkokWorkDate();
+    const now = new Date();
+    const openShift = await findLatestOpenAttendance(
+      userId,
+      new Date(now.getTime() - MAX_OPEN_SHIFT_MS),
+    );
 
-    const existing = await findAttendanceByUserAndDate(userId, workDate);
+    if (!openShift) {
+      const today = await findAttendanceByUserAndDate(
+        userId,
+        bangkokWorkDate(now),
+      );
 
-    if (!existing) {
+      if (today?.checkOutAt) {
+        throw new ApiError(
+          409,
+          "Already checked out today",
+          "ALREADY_CHECKED_OUT",
+        );
+      }
+
       throw new ApiError(
         409,
         "Check in before checking out",
@@ -129,9 +173,16 @@ export async function checkOut(
       );
     }
 
-    const now = new Date();
+    const leave = await findLeaveCoveringDate(userId, openShift.workDate);
+    if (leave) {
+      throw new ApiError(
+        409,
+        "วันที่ของกะนี้มีวันหยุดหรือการลา ไม่สามารถเช็กเอาท์ได้",
+        "ON_LEAVE",
+      );
+    }
 
-    const checkoutError = checkOutRuleError(existing, now);
+    const checkoutError = checkOutRuleError(openShift, now);
 
     if (checkoutError === "CHECK_IN_REQUIRED") {
       throw new ApiError(409, "Check in before checking out", checkoutError);
@@ -155,14 +206,14 @@ export async function checkOut(
     );
 
     const attendance = await checkoutAttendance(
-      existing.id,
+      openShift.id,
       {
         checkOutAt: now,
         checkOutPhotoUrl: image.url,
         checkOutImagePublicId: image.publicId,
         checkOutNote: input.note,
         workMinutes: Math.floor(
-          (now.getTime() - existing.checkInAt.getTime()) / 60000,
+          (now.getTime() - openShift.checkInAt.getTime()) / 60000,
         ),
       },
       (attendanceId) =>
@@ -225,11 +276,20 @@ export async function listMyAttendance(
 // ========================================
 
 export async function getTodayAttendance(userId: string) {
+  const now = new Date();
   const attendance = await findAttendanceByUserAndDateWithMoney(
     userId,
-    bangkokWorkDate(),
+    bangkokWorkDate(now),
   );
-  return attendance ? hideExpiredAttendancePhotos(attendance) : null;
+
+  if (attendance) return hideExpiredAttendancePhotos(attendance);
+
+  // หลังเที่ยงคืน กะของเมื่อวานอาจยังเปิดอยู่ ต้องแสดงเพื่อให้เช็กเอาท์ต่อได้
+  const openShift = await findLatestOpenAttendanceWithMoney(
+    userId,
+    new Date(now.getTime() - MAX_OPEN_SHIFT_MS),
+  );
+  return openShift ? hideExpiredAttendancePhotos(openShift) : null;
 }
 
 // ========================================
@@ -250,12 +310,14 @@ export async function listAdminAttendance(
   skip: number,
   take: number,
   sort: "asc" | "desc" = "desc",
+  academicTermId?: string,
 ) {
   const { items, total } = await listAdminAttendanceRecords(
     where,
     skip,
     take,
     sort,
+    academicTermId,
   );
 
   return {
@@ -284,16 +346,17 @@ export async function getAdminAttendanceStats(
 
 export function countMonthlyAttendanceDays(
   range: { gte: Date; lt: Date },
+  academicTermId?: string,
 ) {
-  return countMonthlyAttendanceDaysRecord(range);
+  return countMonthlyAttendanceDaysRecord(range, academicTermId);
 }
 
 // ========================================
 // Get Admin Attendance By ID
 // ========================================
 
-export async function getAdminAttendanceById(id: string) {
-  const attendance = await findAdminAttendanceById(id);
+export async function getAdminAttendanceById(id: string, academicTermId?: string) {
+  const attendance = await findAdminAttendanceById(id, academicTermId);
   return attendance ? hideExpiredAttendancePhotos(attendance) : null;
 }
 
@@ -322,17 +385,20 @@ export async function listUserAttendance(
 // Build Admin Attendance Filter
 // ========================================
 
-export function buildAdminAttendanceFilter(input: {
+export async function buildAdminAttendanceFilter(input: {
   date?: string;
   monthRange?: {
     gte: Date;
     lt: Date;
   };
   shopCode?: string;
+  academicTermId?: string;
+  gradeLevel?: number;
+  section?: string;
   status?: "checked-in" | "checked-out" | "complete" | "working" | "missed";
   today?: Date;
   query?: string;
-}): Prisma.AttendanceWhereInput {
+}): Promise<Prisma.AttendanceWhereInput> {
   const conditions: Prisma.AttendanceWhereInput[] = [];
 
   if (input.date) {
@@ -355,9 +421,22 @@ export function buildAdminAttendanceFilter(input: {
     if (input.today) conditions.push({ workDate: { lt: input.today } });
   }
 
+  const hasEnrollmentFilter = Boolean(input.shopCode || input.gradeLevel || input.section);
+  const latestIds = !input.academicTermId && hasEnrollmentFilter
+    ? await findUserIdsByLatestEnrollment({ branchName: input.shopCode, yearLevel: input.gradeLevel, section: input.section })
+    : undefined;
   const userFilter: Prisma.UserScalarRelationFilter = {
     is: {
-      ...(input.shopCode ? { shopCode: input.shopCode } : {}),
+      ...(input.academicTermId
+        ? { enrollments: { some: {
+            academicTermId: input.academicTermId,
+            ...(input.shopCode ? { branch: { name: input.shopCode } } : {}),
+            ...(input.gradeLevel || input.section ? { classGroup: {
+              ...(input.gradeLevel ? { yearLevel: input.gradeLevel } : {}),
+              ...(input.section ? { section: input.section } : {}),
+            } } : {}),
+          } } }
+        : latestIds ? { id: { in: latestIds } } : {}),
       ...(input.query
         ? {
             OR: [

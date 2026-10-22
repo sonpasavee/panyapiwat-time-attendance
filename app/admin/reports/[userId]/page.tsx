@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/page-auth";
 import { formatSpent } from "@/lib/format";
 import { idSchema, monthYear } from "@/validators/api";
-import { getUserMonthlyDetail } from "@/services/admin-report.service";
+import { getUserMonthlyDetail, listReportTerms } from "@/services/admin-report.service";
 
 import ExportUserButton, {
   type UserExportRow,
@@ -48,6 +48,7 @@ export default async function AdminUserReportPage({
   searchParams: Promise<{
     month?: string | string[];
     year?: string | string[];
+    termId?: string | string[];
   }>;
 }) {
   await requireAdminPage();
@@ -65,6 +66,11 @@ export default async function AdminUserReportPage({
 
   let month = 0;
   let year = 0;
+  const terms = await listReportTerms();
+  const selectedTerm = first(query.termId)?.trim();
+  const termId = terms.some((term) => term.id === selectedTerm)
+    ? selectedTerm!
+    : terms[0]?.id;
   try {
     ({ month, year } = monthYear(
       new URLSearchParams({
@@ -76,13 +82,13 @@ export default async function AdminUserReportPage({
     notFound();
   }
 
-  const detail = await getUserMonthlyDetail(validId, month, year);
+  const detail = await getUserMonthlyDetail(validId, month, year, termId);
   if (!detail) notFound();
 
   const prev = shiftMonth(month, year, -1);
   const next = shiftMonth(month, year, 1);
   const monthHref = (m: number, y: number) =>
-    `/admin/reports/${validId}?month=${m}&year=${y}`;
+    `/admin/reports/${validId}?month=${m}&year=${y}${termId ? `&termId=${encodeURIComponent(termId)}` : ""}`;
 
   // กราฟแสดงถึงวันปัจจุบันเมื่อดูเดือนปัจจุบัน, เดือนอื่นแสดงทั้งเดือน
   const [ty, tm, td] = todayISO().split("-").map(Number);
@@ -107,7 +113,9 @@ export default async function AdminUserReportPage({
     const status = d.checkInAt
       ? d.checkOutAt
         ? "COMPLETE"
-        : "WORKING"
+        : d.workDateISO < todayISO()
+          ? "MISSED_CHECKOUT"
+          : "WORKING"
       : d.leaveType!;
     return {
       date: detailDayLabel(d.workDateISO),
@@ -124,13 +132,15 @@ export default async function AdminUserReportPage({
           ? "ครบ"
           : status === "WORKING"
             ? "กำลังทำงาน"
-            : status === "SICK"
-              ? "ลาป่วย"
-              : status === "PERSONAL"
-                ? "ลากิจ"
-                : status === "HOLIDAY"
-                  ? "วันหยุด"
-                  : "ยังไม่เช็กอิน",
+            : status === "MISSED_CHECKOUT"
+              ? "ไม่ได้เช็กเอาท์"
+              : status === "SICK"
+                ? "ลาป่วย"
+                : status === "PERSONAL"
+                  ? "ลากิจ"
+                  : status === "HOLIDAY"
+                    ? "วันหยุด"
+                    : "ยังไม่เช็กอิน",
     };
   });
 
@@ -306,7 +316,9 @@ export default async function AdminUserReportPage({
                   const status = d.checkInAt
                     ? d.checkOutAt
                       ? ("COMPLETE" as const)
-                      : ("WORKING" as const)
+                      : d.workDateISO < todayISO()
+                        ? ("MISSED_CHECKOUT" as const)
+                        : ("WORKING" as const)
                     : (d.leaveType ?? ("HOLIDAY" as const));
                   return (
                     <tr key={d.workDateISO}>
