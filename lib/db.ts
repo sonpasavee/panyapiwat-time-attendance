@@ -12,7 +12,15 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is required");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  // Vercel may run several function instances at once. Keep each instance's
+  // pg pool small so concurrent dashboard requests do not exhaust Supabase
+  // connections; the pooler can multiplex these connections upstream.
+  const adapter = new PrismaPg({
+    connectionString,
+    max: 2,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 10_000,
+  });
 
   return new PrismaClient({ adapter });
 }
